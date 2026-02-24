@@ -1,0 +1,103 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Capability for the main window",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:default",
+    "core:window:allow-close",
+    "core:window:allow-hide",
+    "core:window:allow-show",
+    "core:window:allow-set-focus",
+    "opener:default",
+    {
+      "identifier": "shell:allow-execute",
+      "allow": [
+        {
+          "name": "binaries/bypax-proxy",
+          "sidecar": true,
+          "args": true
+        },
+        {
+          "name": "ping",
+          "cmd": "ping",
+          "args": true
+        },
+        {
+          "name": "reg",
+          "cmd": "reg",
+          "args": [
+            "add",
+            "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings",
+            "/v",
+            "ProxyEnable",
+            "/t",
+            "REG_DWORD",
+            "/d",
+            "0",
+            "/f"
+          ]
+        },
+        {
+          "name": "reg",
+          "cmd": "reg",
+          "args": [
+            "add",
+            "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings",
+            "/v",
+            "ProxyEnable",
+            "/t",
+            "REG_DWORD",
+            "/d",
+            "1",
+            "/f"
+          ]
+        },
+        {
+          "name": "reg",
+          "cmd": "reg",
+          "args": [
+            "add",
+            "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings",
+            "/v",
+            "ProxyServer",
+            "/t",
+            "REG_SZ",
+            "/d",
+            {
+              "validator": "\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}:\\d+"
+            },
+            "/f"
+          ]
+        }
+      ]
+    },
+    {
+      "identifier": "shell:allow-spawn",
+      "allow": [
+        {
+          "name": "binaries/bypax-proxy",
+          "sidecar": true,
+          "args": true
+        }
+      ]
+    },
+    {
+      "identifier": "shell:allow-kill",
+      "allow": [
+        {
+          "name": "binaries/bypax-proxy",
+          "sidecar": true,
+          "args": true
+        }
+      ]
+    },
+    "shell:allow-open",
+    "process:default",
+    "clipboard-manager:default",
+    "notification:default",
+    "dialog:default"
+  ]
+}
