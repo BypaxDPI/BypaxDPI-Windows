@@ -84,10 +84,10 @@ function App() {
       autoStart: false,
       autoConnect: false,
       minimizeToTray: false,
-      dnsMode: 'auto',
-      selectedDns: 'cloudflare',
+      dnsMode: 'manual',
+      selectedDns: 'system',
       autoReconnect: true,
-      dpiMethod: '0'
+      dpiMethod: '1'
     };
     
     const saved = localStorage.getItem('bypax_config');
@@ -536,7 +536,7 @@ function App() {
           
           if (shouldReconnect) {
             addLog(`🔄 ${t.logAutoReconnect}`, 'info');
-            notifyUser('Bypax', t.logAutoReconnect, 'disconnect');
+            notifyUser('BypaxDPI', t.logAutoReconnect, 'disconnect');
             setIsProcessing(true);
             attemptReconnect();
           }
@@ -569,7 +569,7 @@ function App() {
              setIsConnected(true);
              setIsProcessing(false);
              addLog(t.logConnected, 'info');
-             notifyUser('Bypax', t.logConnected, 'connect');
+             notifyUser('BypaxDPI', t.logConnected, 'connect');
              updateTrayTooltip('connected'); // ✅ Auto-connect başarılı
         }
       }, 2000); // (Fail-safe timeout)
@@ -619,7 +619,7 @@ function App() {
 
       // Eğer kapatma (shutdown) sırasındaysa, bildirim yollama.
       if (!isAppClosing) {
-         notifyUser('Bypax', 'Bağlantı başarıyla sonlandırıldı.', 'disconnect_manual'); // Özel notification event tipi
+         notifyUser('BypaxDPI', 'Bağlantı başarıyla sonlandırıldı.', 'disconnect_manual'); // Özel notification event tipi
       }
       
       setIsProcessing(false);
@@ -941,7 +941,7 @@ function App() {
             <div style={{ zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', maxWidth: '420px' }}>
                 <img 
                   src="/bypax-logo.png" 
-                  alt="Bypax" 
+                  alt="BypaxDPI" 
                   style={{ 
                     width: '80px', 
                     height: '80px', 
@@ -983,32 +983,61 @@ function App() {
                       <Shield size={22} />
                     </div>
                     <div>
-                      <div style={{ color: '#d4d4d8', fontSize: '0.85rem', lineHeight: '1.4' }}>
-                        {t.adminStep}
-                      </div>
+                      <div 
+                        style={{ color: '#d4d4d8', fontSize: '0.85rem', lineHeight: '1.4' }}
+                        dangerouslySetInnerHTML={{ __html: t.adminStep }}
+                      />
                     </div>
                   </div>
                 </div>
 
-                <button 
-                  style={{ 
-                    background: '#ef4444', 
-                    color: 'white', 
-                    padding: '0.8rem 2rem', 
-                    border: 'none', 
-                    borderRadius: '10px', 
-                    fontSize: '0.95rem', 
-                    fontWeight: '600', 
-                    cursor: 'pointer',
-                    width: '100%',
-                    transition: 'opacity 0.2s',
-                  }}
-                  onMouseEnter={(e) => e.target.style.opacity = '0.9'}
-                  onMouseLeave={(e) => e.target.style.opacity = '1'}
-                  onClick={() => exit(0)}
-                >
-                  {t.adminClose}
-                </button>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%' }}>
+                  <button 
+                    style={{ 
+                      background: '#3b82f6', 
+                      color: 'white', 
+                      padding: '0.8rem 2rem', 
+                      border: 'none', 
+                      borderRadius: '10px', 
+                      fontSize: '0.95rem', 
+                      fontWeight: '600', 
+                      cursor: 'pointer',
+                      width: '100%',
+                      transition: 'all 0.2s ease',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      boxShadow: '0 4px 14px rgba(59, 130, 246, 0.3)'
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = '#2563eb'; e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(59, 130, 246, 0.4)' }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = '#3b82f6'; e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 14px rgba(59, 130, 246, 0.3)' }}
+                    onClick={() => open('https://bypaxdpi.vercel.app/how-it-works')}
+                  >
+                    <HelpCircle size={18} />
+                    {t.adminHowItWorks}
+                  </button>
+
+                  <button 
+                    style={{ 
+                      background: '#ef4444', 
+                      color: 'white', 
+                      padding: '0.8rem 2rem', 
+                      border: 'none', 
+                      borderRadius: '10px', 
+                      fontSize: '0.95rem', 
+                      fontWeight: '600', 
+                      cursor: 'pointer',
+                      width: '100%',
+                      transition: 'opacity 0.2s',
+                    }}
+                    onMouseEnter={(e) => e.target.style.opacity = '0.9'}
+                    onMouseLeave={(e) => e.target.style.opacity = '1'}
+                    onClick={() => exit(0)}
+                  >
+                    {t.adminClose}
+                  </button>
+                </div>
             </div>
           </motion.div>
         )}
@@ -1016,7 +1045,7 @@ function App() {
       {/* Header */}
       <header className="app-header">
         <div className="brand">
-          <img src="/bypax-logo.png" alt="Bypax" className="brand-logo" />
+          <img src="/bypax-logo.png" alt="BypaxDPI" className="brand-logo" />
           <span className="brand-name">BYPAXDPI</span>
         </div>
         <div className={`status-badge ${isConnected ? 'active' : (isProcessing ? 'processing' : 'passive')}`}>
@@ -1214,51 +1243,137 @@ function App() {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 className="modal-overlay"
+                style={{ zIndex: 10000, background: 'rgba(9, 9, 11, 0.65)', backdropFilter: 'blur(6px)' }}
                 onClick={() => setShowConnectionModal(false)}
             >
+                <div style={{
+                   position: 'absolute',
+                   top: '40%',
+                   left: '50%',
+                   transform: 'translate(-50%, -50%)',
+                   width: '100%',
+                   height: '400px',
+                   background: 'radial-gradient(circle, rgba(59, 130, 246, 0.12) 0%, rgba(0,0,0,0) 50%)',
+                   pointerEvents: 'none',
+                   zIndex: 0
+                }} />
+
                 <motion.div 
-                    initial={{ scale: 0.9, y: 20 }}
-                    animate={{ scale: 1, y: 0 }}
-                    exit={{ scale: 0.9, y: 20 }}
+                    initial={{ scale: 0.95, y: 15, opacity: 0 }}
+                    animate={{ scale: 1, y: 0, opacity: 1 }}
+                    exit={{ scale: 0.95, y: 15, opacity: 0 }}
+                    transition={{ type: "spring", damping: 25, stiffness: 300 }}
                     className="connection-modal"
+                    style={{ 
+                        zIndex: 1, 
+                        maxWidth: '360px',
+                        background: '#18181b',
+                        border: '1px solid rgba(255, 255, 255, 0.12)',
+                        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+                        padding: '24px'
+                    }}
                     onClick={e => e.stopPropagation()}
                 >
-                    <div className="modal-header">
-                        <div className="modal-icon-bg">
-                            <Smartphone size={24} color="#a855f7" />
+                    <div className="modal-header" style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem', position: 'relative' }}>
+                        <div style={{ 
+                            width: '48px', 
+                            height: '48px', 
+                            borderRadius: '14px', 
+                            background: 'rgba(59, 130, 246, 0.1)', 
+                            border: '1px solid rgba(59, 130, 246, 0.2)',
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            justifyContent: 'center' 
+                        }}>
+                            <Smartphone size={24} color="#3b82f6" />
                         </div>
                         <div>
-                           <h2>{t.modalTitle}</h2>
-                           <p style={{fontSize: '0.8rem', color: '#a1a1aa', margin: 0}}>{t.modalSubtitle}</p>
+                           <h2 style={{ fontSize: '1.15rem', fontWeight: '700', color: '#f8fafc', margin: 0, marginBottom: '2px' }}>{t.modalTitle}</h2>
+                           <p style={{fontSize: '0.8rem', color: '#94a3b8', margin: 0}}>{t.modalSubtitle}</p>
                         </div>
-                        <button className="close-btn" onClick={() => setShowConnectionModal(false)}>
-                            <X size={20} />
+                        <button 
+                          className="close-btn" 
+                          onClick={() => setShowConnectionModal(false)}
+                          style={{
+                              position: 'absolute',
+                              right: '-5px',
+                              top: '-5px',
+                              background: 'rgba(255, 255, 255, 0.05)',
+                              border: '1px solid rgba(255, 255, 255, 0.1)',
+                              color: '#a1a1aa',
+                              width: '32px',
+                              height: '32px',
+                              borderRadius: '50%',
+                              padding: 0,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              cursor: 'pointer',
+                              transition: 'all 0.2s'
+                          }}
+                          onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'; e.currentTarget.style.color = '#fff' }}
+                          onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'; e.currentTarget.style.color = '#a1a1aa' }}
+                        >
+                            <X size={18} />
                         </button>
                     </div>
                     
                     <div className="modal-body">
-                        <p className="modal-desc">
+                        <p style={{ fontSize: '0.88rem', color: '#94a3b8', lineHeight: '1.6', marginBottom: '1.5rem' }}>
                             <span dangerouslySetInnerHTML={{ __html: t.modalDesc }} />
                         </p>
                         
-                        <div className="info-row">
-                            <div className="info-group">
-                                <label>{t.modalHost}</label>
-                                <div className="code-box" onClick={() => writeText(lanIp)}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.5rem' }}>
+                            <div style={{ flex: 1 }}>
+                                <label style={{ display: 'block', fontSize: '0.75rem', color: '#71717a', marginBottom: '0.5rem', textTransform: 'uppercase', fontWeight: '600', letterSpacing: '0.05em' }}>
+                                  {t.modalHost}
+                                </label>
+                                <div 
+                                  className="code-box" 
+                                  onClick={() => writeText(lanIp)}
+                                  title="Kopyala"
+                                >
                                     <span>{lanIp}</span>
-                                    <Copy size={16} />
+                                    <Copy size={16} color="#71717a" />
                                 </div>
                             </div>
-                            <div className="info-group">
-                                <label>{t.modalPort}</label>
-                                <div className="code-box" onClick={() => writeText(currentPort.toString())}>
+                            <div style={{ flex: 1 }}>
+                                <label style={{ display: 'block', fontSize: '0.75rem', color: '#71717a', marginBottom: '0.5rem', textTransform: 'uppercase', fontWeight: '600', letterSpacing: '0.05em' }}>
+                                  {t.modalPort}
+                                </label>
+                                <div 
+                                  className="code-box" 
+                                  onClick={() => writeText(currentPort.toString())}
+                                  title="Kopyala"
+                                >
                                     <span>{currentPort}</span>
-                                    <Copy size={16} />
+                                    <Copy size={16} color="#71717a" />
                                 </div>
                             </div>
                         </div>
 
-                        <button className="tutorial-btn" onClick={() => open('https://bypaxdpi.vercel.app/proxy')}> 
+                        <button 
+                            style={{ 
+                                width: '100%',
+                                background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                                color: 'white',
+                                border: 'none',
+                                padding: '0.85rem',
+                                borderRadius: '12px',
+                                fontWeight: '600',
+                                fontSize: '0.95rem',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '8px',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s',
+                                boxShadow: '0 4px 14px rgba(59, 130, 246, 0.3)'
+                            }}
+                            onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(59, 130, 246, 0.4)' }}
+                            onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 14px rgba(59, 130, 246, 0.3)' }}
+                            onClick={() => open('https://bypaxdpi.vercel.app/proxy')}
+                        > 
                             <HelpCircle size={18} />
                             {t.modalTutorial}
                         </button>
@@ -1276,7 +1391,7 @@ function App() {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 className="modal-overlay"
-                style={{ zIndex: 999999 }}
+                style={{ zIndex: 999999, background: 'rgba(9, 9, 11, 0.65)', backdropFilter: 'blur(6px)' }}
             >
                 <div style={{
                    position: 'absolute',
@@ -1285,71 +1400,92 @@ function App() {
                    transform: 'translate(-50%, -50%)',
                    width: '100%',
                    height: '400px',
-                   background: 'radial-gradient(circle, rgba(234, 179, 8, 0.08) 0%, rgba(0,0,0,0) 60%)',
+                   background: 'radial-gradient(circle, rgba(239, 68, 68, 0.12) 0%, rgba(0,0,0,0) 50%)',
                    pointerEvents: 'none',
                    zIndex: 0
                 }} />
                 
                 <motion.div 
-                    initial={{ scale: 0.9, y: 20 }}
-                    animate={{ scale: 1, y: 0 }}
-                    exit={{ scale: 0.9, y: 20 }}
+                    initial={{ scale: 0.95, y: 15, opacity: 0 }}
+                    animate={{ scale: 1, y: 0, opacity: 1 }}
+                    exit={{ scale: 0.95, y: 15, opacity: 0 }}
+                    transition={{ type: "spring", damping: 25, stiffness: 300 }}
                     className="connection-modal"
-                    style={{ zIndex: 1, textAlign: 'center', maxWidth: '320px' }}
+                    style={{ 
+                        zIndex: 1, 
+                        textAlign: 'center', 
+                        maxWidth: '340px',
+                        background: '#18181b',
+                        border: '1px solid rgba(255, 255, 255, 0.12)',
+                        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+                        padding: '24px'
+                    }}
                     onClick={e => e.stopPropagation()}
                 >
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                         <div style={{ 
-                            background: 'rgba(234, 179, 8, 0.15)', 
-                            color: '#eab308', 
-                            width: '56px', 
-                            height: '56px', 
+                            background: 'rgba(239, 68, 68, 0.1)', 
+                            color: '#ef4444', 
+                            width: '64px', 
+                            height: '64px', 
                             borderRadius: '50%', 
                             display: 'flex', 
                             alignItems: 'center', 
                             justifyContent: 'center',
-                            marginBottom: '1rem' 
+                            marginBottom: '1.25rem',
+                            border: '1px solid rgba(239, 68, 68, 0.2)'
                         }}>
-                           <AlertTriangle size={28} />
+                           <AlertTriangle size={30} strokeWidth={1.5} />
                         </div>
                         
-                        <h2 style={{ fontSize: '1.25rem', color: '#fff', marginBottom: '0.5rem' }}>{confirmState.title}</h2>
-                        <p style={{ color: '#a1a1aa', fontSize: '0.9rem', marginBottom: '1.5rem', lineHeight: '1.5' }}>
+                        <h2 style={{ fontSize: '1.25rem', color: '#f8fafc', marginBottom: '0.75rem', fontWeight: '600' }}>
+                            {confirmState.title}
+                        </h2>
+                        <p style={{ color: '#94a3b8', fontSize: '0.9rem', marginBottom: '2rem', lineHeight: '1.6' }}>
                             {confirmState.desc}
                         </p>
                         
-                        <div style={{ display: 'flex', gap: '10px', width: '100%' }}>
+                        <div style={{ display: 'flex', gap: '12px', width: '100%' }}>
                             <button 
                                 onClick={() => handleConfirmResult(false)}
                                 style={{
                                     fontFamily: 'inherit',
                                     flex: 1,
-                                    background: 'rgba(255, 255, 255, 0.05)',
-                                    color: '#d4d4d8',
-                                    padding: '0.75rem',
-                                    border: '1px solid rgba(255, 255, 255, 0.1)',
-                                    borderRadius: '8px',
+                                    background: 'rgba(255, 255, 255, 0.03)',
+                                    color: '#cbd5e1',
+                                    padding: '0.85rem',
+                                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                                    borderRadius: '10px',
                                     fontWeight: '500',
-                                    cursor: 'pointer'
+                                    fontSize: '0.95rem',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.2s ease'
                                 }}
+                                onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)'; e.currentTarget.style.color = '#fff' }}
+                                onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.03)'; e.currentTarget.style.color = '#cbd5e1' }}
                             >
-                                {t.btnNo || 'Hayır'}
+                                {t.btnNo || 'İptal'}
                             </button>
                             <button 
                                 onClick={() => handleConfirmResult(true)}
                                 style={{
                                     fontFamily: 'inherit',
                                     flex: 1,
-                                    background: '#eab308',
-                                    color: '#000',
-                                    padding: '0.75rem',
+                                    background: '#ef4444',
+                                    color: '#ffffff',
+                                    padding: '0.85rem',
                                     border: 'none',
-                                    borderRadius: '8px',
+                                    borderRadius: '10px',
                                     fontWeight: '600',
-                                    cursor: 'pointer'
+                                    fontSize: '0.95rem',
+                                    cursor: 'pointer',
+                                    boxShadow: '0 4px 14px rgba(239, 68, 68, 0.3)',
+                                    transition: 'all 0.2s ease'
                                 }}
+                                onMouseEnter={(e) => { e.currentTarget.style.background = '#dc2626'; e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(239, 68, 68, 0.4)' }}
+                                onMouseLeave={(e) => { e.currentTarget.style.background = '#ef4444'; e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 14px rgba(239, 68, 68, 0.3)' }}
                             >
-                                {t.btnYes || 'Evet'}
+                                {t.btnYes || 'Onayla'}
                             </button>
                         </div>
                     </div>

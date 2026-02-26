@@ -45,8 +45,9 @@ const translations = {
     // ===== APP.JSX - Admin Modal =====
     adminTitle: 'Yönetici İzni Gerekli',
     adminDesc: 'BypaxDPI\'ın düzgün çalışması için yönetici olarak çalıştırılması gereklidir.',
-    adminStep: 'Uygulamaya sağ tıklayın → "Yönetici olarak çalıştır" seçin',
+    adminStep: 'Uygulamaya sağ tıklayın → <strong>"Yönetici olarak çalıştır"</strong> seçin',
     adminClose: 'KAPAT',
+    adminHowItWorks: 'Nasıl Çalışır?',
 
     // ===== APP.JSX - No Internet =====
     noInternetTitle: 'İnternet Bağlantısı Yok',
@@ -70,7 +71,7 @@ const translations = {
     logMaxRetries: 'Bağlantı kurulamadı. Maksimum deneme sayısına ulaşıldı.',
     logPossibleReasons: 'Olası sebepler:',
     logReasonInternet: 'İnternet bağlantınız kesilmiş olabilir',
-    logReasonFirewall: 'Firewall/Antivirüs Bypax\'ı engelliyor olabilir',
+    logReasonFirewall: 'Firewall/Antivirüs BypaxDPI\'ı engelliyor olabilir',
     logReasonPorts: '8080-8084 portları sistem tarafından kullanılıyor',
     logSolutions: 'Çözüm önerileri:',
     logSolInternet: 'İnternet bağlantınızı kontrol edin',
@@ -110,12 +111,12 @@ const translations = {
     // Section: General
     sectionGeneral: 'GENEL',
     autoStart: 'Başlangıçta Çalıştır',
-    autoStartDesc: 'Windows açılınca Bypax\'ı başlat',
+    autoStartDesc: 'Windows açılınca BypaxDPI\'ı başlat',
     minimizeToTray: 'Tepsiye Küçült',
     minimizeToTrayDesc: 'Kapatıldığında arka planda çalışsın',
     requireConfirmation: 'İşlem Onayı',
     requireConfirmationDesc: 'Bağlantıyı keserken veya çıkarken sor',
-    language: 'Uygulama Dili',
+    language: 'UYGULAMA DILI',
     languageDesc: 'Arayüz dilini değiştirin',
 
     // Section: Notifications
@@ -138,6 +139,8 @@ const translations = {
     dnsGoogleDesc: 'Güvenilir',
     dnsQuad9Desc: 'Güvenlik Odaklı',
     dnsOpenDnsDesc: 'Cisco Güvencesi',
+    dnsCheckSpeed: 'DNS Ping Test',
+    dnsChecking: 'Ölçülüyor...',
 
     // Section: Troubleshooting
     sectionTroubleshoot: 'SORUN GİDERME',
@@ -176,7 +179,7 @@ const translations = {
 
   en: {
     // ===== APP.JSX - Header =====
-    appName: 'BYPAX',
+    appName: 'BYPAXDPI',
     statusActive: 'ACTIVE',
     statusInactive: 'OFF',
     statusReady: 'READY',
@@ -219,9 +222,10 @@ const translations = {
 
     // ===== APP.JSX - Admin Modal =====
     adminTitle: 'Administrator Required',
-    adminDesc: 'Bypax needs to run as administrator to work correctly.',
-    adminStep: 'Right-click the app → Select "Run as administrator"',
+    adminDesc: 'BypaxDPI needs to run as administrator to work correctly.',
+    adminStep: 'Right-click the app → Select <strong>"Run as administrator"</strong>',
     adminClose: 'CLOSE',
+    adminHowItWorks: 'How it Works?',
 
     // ===== APP.JSX - No Internet =====
     noInternetTitle: 'No Internet Connection',
@@ -290,7 +294,7 @@ const translations = {
     minimizeToTrayDesc: 'Run in background when closed',
     requireConfirmation: 'Action Confirmation',
     requireConfirmationDesc: 'Ask before disconnecting or exiting',
-    language: 'Language',
+    language: 'LANGUAGE',
     languageDesc: 'Change interface language',
 
     // Section: Notifications
@@ -313,6 +317,8 @@ const translations = {
     dnsGoogleDesc: 'Reliable',
     dnsQuad9Desc: 'Security Focused',
     dnsOpenDnsDesc: 'Powered by Cisco',
+    dnsCheckSpeed: 'DNS Ping Test',
+    dnsChecking: 'Measuring...',
 
     // Section: Troubleshooting
     sectionTroubleshoot: 'TROUBLESHOOTING',
@@ -327,7 +333,7 @@ const translations = {
 
     // Section: Developer
     sectionDev: 'DEVELOPER',
-    devRole: 'Bypax Developer',
+    devRole: 'BypaxDPI Developer',
     devSubscribe: 'Subscribe',
     devSupport: 'Support',
 

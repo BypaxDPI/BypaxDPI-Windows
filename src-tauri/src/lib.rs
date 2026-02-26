@@ -316,7 +316,7 @@ pub fn run() {
                 let _tray = TrayIconBuilder::with_id("tray")
                     .menu(&menu)
                     .icon(app.default_window_icon().unwrap().clone())
-                    .tooltip("Dypax - Kapalı")
+                    .tooltip("BypaxDPI - Kapalı")
                     .on_menu_event(|app, event| match event.id.as_ref() {
                         "quit" => {
                             // ✅ Frontend'e close event gönder — cleanup mekanizması çalışsın

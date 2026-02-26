@@ -381,80 +381,116 @@ const Settings = ({ onBack, config, updateConfig }) => {
 
               {/* ========== 4. DNS LİSTESİ ========== */}
               <div className="v2-section">
-                <div className="v2-section-header-row">
-                  <div className="v2-section-title">{t.sectionDns}</div>
-                  <button className="v2-refresh-btn" onClick={checkAllLatencies} disabled={isChecking}>
-                    <RotateCw size={16} className={isChecking ? 'spin' : ''} />
-                  </button>
-                </div>
+                <div className="v2-section-title">{t.sectionDns}</div>
                 
                 <div className="v2-card">
+                  {/* Sistem Varsayılanı Toggle */}
                   <div className="v2-item">
                     <div className="v2-item-text">
-                      <h3>{t.dnsAutoSelect}</h3>
-                      <p>{t.dnsAutoSelectDesc}</p>
+                      <h3>{t.dnsSystemDefault}</h3>
+                      <p>{t.dnsSystemDefaultDesc}</p>
                     </div>
                     <Toggle 
-                      checked={config.dnsMode === 'auto'} 
+                      checked={config.selectedDns === 'system'} 
                       onChange={(v) => {
-                        updateConfig('dnsMode', v ? 'auto' : 'manual');
-                        if (v) checkAllLatencies(true); // forceSelectBest=true: picks best DNS immediately without waiting for state update
+                        if (v) {
+                          updateConfig('selectedDns', 'system');
+                          updateConfig('dnsMode', 'manual');
+                        } else {
+                          updateConfig('selectedDns', 'cloudflare'); // Varsayılan bir değere geç
+                        }
                       }} 
                     />
                   </div>
 
-                  <div className="v2-dns-list">
-                    <AnimatePresence>
-                      {sortedProviders.map((p) => {
-                        const isSelected = config.selectedDns === p.id;
-                        const isAutoMode = config.dnsMode === 'auto';
-                        const isDisabled = isAutoMode && p.id !== 'system';
-                        const isSystemOption = p.id === 'system';
-                        return (
-                          <motion.div 
-                            layout
-                            key={p.id}
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ 
-                              opacity: isDisabled
-                                ? (isSelected ? 1 : 0.5)
-                                : (!isSystemOption && !isSelected ? 0.45 : 1),
-                              y: 0 
-                            }}
-                            whileHover={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                            className={`v2-dns-item ${isSelected ? 'selected' : ''} ${isDisabled ? 'disabled' : ''}`}
-                            style={isSystemOption ? {
-                              background: isSelected
-                                ? 'rgba(100, 116, 139, 0.25)'
-                                : 'rgba(71, 85, 105, 0.12)',
-                              borderLeft: '3px solid rgba(148, 163, 184, 0.35)',
-                              borderRadius: '8px',
-                            } : {}}
-                            onClick={() => {
-                              if (isDisabled) return;
-                              // If user picks system, turn off auto mode
-                              if (isSystemOption && isAutoMode) {
-                                updateConfig('dnsMode', 'manual');
-                              }
-                              updateConfig('selectedDns', p.id);
-                            }}
-                          >
-                            <div className={`v2-radio ${isSelected ? 'on' : ''}`}>
-                              {isSelected && <div className="v2-radio-dot" />}
-                            </div>
-                            <div className="v2-dns-info">
-                              <span className="v2-dns-name" style={isSystemOption ? { color: '#94a3b8' } : {}}>{p.name}</span>
-                              <span className="v2-dns-desc">{p.desc}</span>
-                            </div>
-                            {latencies[p.id] && (
-                              <div className="v2-latency">{latencies[p.id]}ms</div>
-                            )}
-                          </motion.div>
-                        );
-                      })}
-                    </AnimatePresence>
+                  <div className="v2-divider" />
+
+                  <div style={{ opacity: config.selectedDns === 'system' ? 0.4 : 1, pointerEvents: config.selectedDns === 'system' ? 'none' : 'auto', transition: 'all 0.3s ease' }}>
+                    <div className="v2-item">
+                      <div className="v2-item-text">
+                        <h3>{t.dnsAutoSelect}</h3>
+                        <p>{t.dnsAutoSelectDesc}</p>
+                      </div>
+                      <Toggle 
+                        checked={config.dnsMode === 'auto' && config.selectedDns !== 'system'} 
+                        onChange={(v) => {
+                          updateConfig('dnsMode', v ? 'auto' : 'manual');
+                          if (v) checkAllLatencies(true); 
+                        }} 
+                      />
+                    </div>
+
+                    <div style={{ padding: '0 16px 16px 16px' }}>
+                      <button 
+                        onClick={checkAllLatencies} 
+                        disabled={isChecking}
+                        style={{
+                          width: '100%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '8px',
+                          background: isChecking ? 'rgba(59, 130, 246, 0.05)' : 'rgba(59, 130, 246, 0.1)',
+                          color: isChecking ? '#93c5fd' : '#60a5fa',
+                          border: '1px solid rgba(59, 130, 246, 0.2)',
+                          padding: '10px 0',
+                          borderRadius: '8px',
+                          fontSize: '0.85rem',
+                          fontWeight: '600',
+                          cursor: isChecking ? 'wait' : 'pointer',
+                          transition: 'all 0.2s ease'
+                        }}
+                        onMouseEnter={(e) => { if(!isChecking) e.currentTarget.style.background = 'rgba(59, 130, 246, 0.2)' }}
+                        onMouseLeave={(e) => { if(!isChecking) e.currentTarget.style.background = 'rgba(59, 130, 246, 0.1)' }}
+                      >
+                        {isChecking ? <RotateCw size={16} className="spin" /> : <Activity size={16} />}
+                        {isChecking ? t.dnsChecking : t.dnsCheckSpeed}
+                      </button>
+                    </div>
+
+                    <div className="v2-divider" style={{ margin: 0 }} />
+
+                    <div className="v2-dns-list">
+                      <AnimatePresence>
+                        {sortedProviders.filter(p => p.id !== 'system').map((p) => {
+                          const isSelected = config.selectedDns === p.id;
+                          const isAutoMode = config.dnsMode === 'auto';
+                          const isDisabled = isAutoMode;
+                          return (
+                            <motion.div 
+                              layout
+                              key={p.id}
+                              initial={{ opacity: 0, y: 10 }}
+                              animate={{ 
+                                opacity: isDisabled 
+                                  ? (isSelected ? 1 : 0.5) 
+                                  : (!isSelected ? 0.45 : 1),
+                                y: 0 
+                              }}
+                              whileHover={{ opacity: 1 }}
+                              exit={{ opacity: 0 }}
+                              transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                              className={`v2-dns-item ${isSelected ? 'selected' : ''} ${isDisabled ? 'disabled' : ''}`}
+                              onClick={() => {
+                                if (isDisabled) return;
+                                updateConfig('selectedDns', p.id);
+                              }}
+                            >
+                              <div className={`v2-radio ${isSelected ? 'on' : ''}`}>
+                                {isSelected && <div className="v2-radio-dot" />}
+                              </div>
+                              <div className="v2-dns-info">
+                                <span className="v2-dns-name">{p.name}</span>
+                                <span className="v2-dns-desc">{p.desc}</span>
+                              </div>
+                              {latencies[p.id] && (
+                                <div className="v2-latency">{latencies[p.id]}ms</div>
+                              )}
+                            </motion.div>
+                          );
+                        })}
+                      </AnimatePresence>
+                    </div>
                   </div>
                 </div>
               </div>

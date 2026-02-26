@@ -1111,38 +1111,47 @@ body {
 
 /* Connection Modal Styles */
 .lan-connect-pill-btn {
-  background: rgba(15, 23, 42, 0.6);
-  border: 1px solid rgba(56, 189, 248, 0.3);
-  color: #e0f2fe;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #e2e8f0;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 9px 20px;
+  gap: 10px;
+  padding: 10px 24px;
   border-radius: 99px;
-  font-size: 0.82rem;
+  font-size: 0.85rem;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   width: auto;
   justify-content: center;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
   outline: none;
   margin: 0 auto;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 .lan-connect-pill-btn:hover {
-  background: rgba(15, 23, 42, 0.9);
-  border-color: rgba(56, 189, 248, 0.6);
+  background: rgba(59, 130, 246, 0.15);
+  border-color: rgba(59, 130, 246, 0.4);
   transform: translateY(-2px);
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 8px 24px rgba(59, 130, 246, 0.25);
+  color: #ffffff;
 }
 
 .arrow-icon {
   font-size: 1.4rem;
   line-height: 0.8;
-  color: #38bdf8;
+  color: #60a5fa;
   font-weight: 300;
-} 
+  transition: transform 0.3s ease, color 0.3s ease;
+}
+
+.lan-connect-pill-btn:hover .arrow-icon {
+  transform: translateX(4px);
+  color: #93c5fd;
+}
 
 .modal-overlay {
   position: fixed;
