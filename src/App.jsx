@@ -10,8 +10,8 @@ import { getTranslations } from './i18n';
 import { Power, Shield, Settings as SettingsIcon, FileText, X, Copy, Trash2, WifiOff, Globe, Smartphone, HelpCircle, AlertTriangle } from 'lucide-react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { writeText } from '@tauri-apps/plugin-clipboard-manager';
-import { exit } from '@tauri-apps/plugin-process';
 import { isPermissionGranted, requestPermission, sendNotification, onAction } from '@tauri-apps/plugin-notification';
+import { QRCodeSVG } from 'qrcode.react';
 
 import './App.css';
 
@@ -21,6 +21,7 @@ function App() {
   const [currentPort, setCurrentPort] = useState(8080);
   const [lanIp, setLanIp] = useState('127.0.0.1'); // ✅ LAN IP State
   const [showConnectionModal, setShowConnectionModal] = useState(false); // ✅ Modal State
+  const [connectionModalTab, setConnectionModalTab] = useState('pac'); // pac | manual
   const [isProcessing, setIsProcessing] = useState(false);
   const [showLogs, setShowLogs] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -33,7 +34,7 @@ function App() {
       .then(result => {
         setIsAdmin(result);
         if (!result) {
-          addLog(getTranslations(configRef.current.language || 'tr').logAdminMissing, "error");
+          addLog(t.logAdminMissing, 'error', { i18nKey: 'logAdminMissing' });
         }
       })
       .catch(err => {
@@ -44,11 +45,11 @@ function App() {
     // ✅ Internet Connection Listeners
     const handleOnline = () => {
         setIsOnline(true);
-        addLog(getTranslations(configRef.current.language || 'tr').logInternetBack, "success");
+        addLog(t.logInternetBack, 'success', { i18nKey: 'logInternetBack' });
     };
     const handleOffline = () => {
         setIsOnline(false);
-        addLog(getTranslations(configRef.current.language || 'tr').logInternetLost, "error");
+        addLog(t.logInternetLost, 'error', { i18nKey: 'logInternetLost' });
     };
 
     window.addEventListener('online', handleOnline);
@@ -87,7 +88,8 @@ function App() {
       dnsMode: 'manual',
       selectedDns: 'system',
       autoReconnect: true,
-      dpiMethod: '1'
+      dpiMethod: '1',
+      httpsChunkSize: 8
     };
     
     const saved = localStorage.getItem('bypax_config');
@@ -113,8 +115,13 @@ function App() {
   const retryCount = useRef(0);
   const retryTimer = useRef(null);
   const userIntentDisconnect = useRef(false);
+  const fatalErrorRef = useRef(false);
   // ✅ Çıkış işlemi başladı mı? (çift modal engellemek için)
   const isExiting = useRef(false);
+  const trayQuitRef = useRef(false);
+  const prevLanSharingRef = useRef(config.lanSharing);
+  const prevDpiMethodRef = useRef(config.dpiMethod);
+  const prevChunkSizeRef = useRef(config.httpsChunkSize ?? 8);
 
   // Constants
   const DNS_MAP = {
@@ -181,18 +188,50 @@ function App() {
     }
   };
 
-  const addLog = (msg, type = 'info') => {
-    // Prevent empty messages
-    if (!msg || msg.trim().length === 0) return;
-
-    const cleanMsg = msg.replace(/\x1b\[[0-9;]*m/g, '');
-    setLogs(prev => [...prev.slice(-99), { 
-      id: Date.now() + Math.random(),
-      time: new Date().toLocaleTimeString(), 
-      msg: cleanMsg, 
-      type 
-    }]);
+  const resolveI18nMessage = (key, params = []) => {
+    if (!key) return '';
+    const value = t[key];
+    if (!value) return '';
+    if (typeof value === 'function') {
+      return value(...params);
+    }
+    return value;
   };
+
+  const addLog = (msg, type = 'info', meta = {}) => {
+    const { i18nKey, i18nParams } = meta;
+
+    let finalMsg = msg;
+    if (i18nKey) {
+      finalMsg = resolveI18nMessage(i18nKey, i18nParams);
+    }
+
+    if (!finalMsg || finalMsg.toString().trim().length === 0) return;
+
+    const cleanMsg = finalMsg.toString().replace(/\x1b\[[0-9;]*m/g, '');
+    setLogs(prev => [
+      ...prev.slice(-99),
+      {
+        id: Date.now() + Math.random(),
+        time: new Date().toLocaleTimeString(),
+        msg: cleanMsg,
+        type,
+        i18nKey: i18nKey || null,
+        i18nParams: i18nParams || null,
+      },
+    ]);
+  };
+
+  // Dil değiştiğinde i18n loglarını güncelle
+  useEffect(() => {
+    setLogs(prev =>
+      prev.map(log => {
+        if (!log.i18nKey) return log;
+        const msg = resolveI18nMessage(log.i18nKey, log.i18nParams || []);
+        return { ...log, msg };
+      }),
+    );
+  }, [t]);
 
   const [copyStatus, setCopyStatus] = useState('idle'); // idle, success, error
 
@@ -227,10 +266,10 @@ function App() {
     try {
       await invoke('clear_system_proxy');
       if (!silent) {
-        addLog(t.logProxyCleared, 'success');
+        addLog(t.logProxyCleared, 'success', { i18nKey: 'logProxyCleared' });
       }
     } catch (e) {
-      addLog(`Proxy temizleme hatası: ${e}`, 'warn');
+      addLog(t.logProxyClearError(e), 'warn', { i18nKey: 'logProxyClearError', i18nParams: [e] });
       console.error(e);
     }
   };
@@ -283,18 +322,18 @@ function App() {
 
     if (currentAttempt >= maxAttempts) {
       // Maksimum deneme aşıldı
-      addLog(`=4 ${t.logMaxRetries}`, 'error');
+      addLog(`=4 ${t.logMaxRetries}`, 'error', { i18nKey: 'logMaxRetries' });
       addLog('', 'info');
-      addLog(`=� ${t.logPossibleReasons}`, 'warn');
-      addLog(`  • ${t.logReasonInternet}`, 'info');
-      addLog(`  • ${t.logReasonFirewall}`, 'info');
-      addLog(`  • ${t.logReasonPorts}`, 'info');
+      addLog(`=� ${t.logPossibleReasons}`, 'warn', { i18nKey: 'logPossibleReasons' });
+      addLog(`  • ${t.logReasonInternet}`, 'info', { i18nKey: 'logReasonInternet' });
+      addLog(`  • ${t.logReasonFirewall}`, 'info', { i18nKey: 'logReasonFirewall' });
+      addLog(`  • ${t.logReasonPorts}`, 'info', { i18nKey: 'logReasonPorts' });
       addLog('', 'info');
-      addLog(`=� ${t.logSolutions}`, 'warn');
-      addLog(`  • ${t.logSolInternet}`, 'info');
-      addLog(`  • ${t.logSolFirewall}`, 'info');
-      addLog(`  • ${t.logSolAdmin}`, 'info');
-      addLog(`  • ${t.logSolLogs}`, 'info');
+      addLog(`=� ${t.logSolutions}`, 'warn', { i18nKey: 'logSolutions' });
+      addLog(`  • ${t.logSolInternet}`, 'info', { i18nKey: 'logSolInternet' });
+      addLog(`  • ${t.logSolFirewall}`, 'info', { i18nKey: 'logSolFirewall' });
+      addLog(`  • ${t.logSolAdmin}`, 'info', { i18nKey: 'logSolAdmin' });
+      addLog(`  • ${t.logSolLogs}`, 'info', { i18nKey: 'logSolLogs' });
       
       retryCount.current = 0;
       setIsProcessing(false);
@@ -305,30 +344,32 @@ function App() {
     retryCount.current++;
 
     if (delay === 0) {
-      addLog(`🔄 ${t.logReconnecting(currentAttempt + 1)}`, 'warn');
+      addLog(`🔄 ${t.logReconnecting(currentAttempt + 1)}`, 'warn', {
+        i18nKey: 'logReconnecting',
+        i18nParams: [currentAttempt + 1],
+      });
       startEngine(8080);
     } else {
-      addLog(`⏳ ${t.logReconnectWait(delay / 1000, currentAttempt + 1)}`, 'warn');
+      addLog(`⏳ ${t.logReconnectWait(delay / 1000, currentAttempt + 1)}`, 'warn', {
+        i18nKey: 'logReconnectWait',
+        i18nParams: [delay / 1000, currentAttempt + 1],
+      });
       updateTrayTooltip('retrying');
       retryTimer.current = setTimeout(() => {
-        addLog(`🔄 ${t.logReconnectNow}`, 'info');
+        addLog(`🔄 ${t.logReconnectNow}`, 'info', { i18nKey: 'logReconnectNow' });
         startEngine(8080);
       }, delay);
     }
   };
 
-  // Wait for port to be ready
-  const waitForPort = async (port, maxAttempts = 10) => {
+  // Port açık mı? Rust ile TCP bağlantı dener (fetch proxy'ye özel yanıt beklediği için bazen başarısız oluyordu)
+  const waitForPort = async (port, maxAttempts = 25) => {
     for (let i = 0; i < maxAttempts; i++) {
       try {
-        await fetch(`http://127.0.0.1:${port}`, {
-          method: 'HEAD',
-          signal: AbortSignal.timeout(500)
-        });
-        return true;
-      } catch {
-        await new Promise(r => setTimeout(r, 150)); // ✅ 300ms -> 150ms (Daha sık kontrol)
-      }
+        const open = await invoke('check_port_open', { port });
+        if (open) return true;
+      } catch (_) {}
+      await new Promise(r => setTimeout(r, 200));
     }
     return false;
   };
@@ -338,7 +379,7 @@ function App() {
     
     // Max 20 retries
     if (portRetryCount >= 20) {
-      addLog(t.logNoPort, 'error');
+      addLog(t.logNoPort, 'error', { i18nKey: 'logNoPort' });
       setIsProcessing(false);
       return;
     }
@@ -356,7 +397,7 @@ function App() {
         bindAddr = configData.bind_address;
         setLanIp(configData.lan_ip); // IP'yi state'e kaydet
     } catch (e) {
-        addLog(t.logConfigError(e), 'error');
+        addLog(t.logConfigError(e), 'error', { i18nKey: 'logConfigError', i18nParams: [e] });
         setIsProcessing(false);
         return;
     }
@@ -366,44 +407,71 @@ function App() {
 
     const dnsIP = DNS_MAP[config.selectedDns];
     
-    addLog(t.logEngineStarting(port), 'info');
+    addLog(t.logEngineStarting(port), 'info', { i18nKey: 'logEngineStarting', i18nParams: [port] });
     
     // DNS bilgisi
     if (dnsIP) {
-      addLog(t.logDnsUsed(config.selectedDns.toUpperCase(), dnsIP), 'info');
+      addLog(
+        t.logDnsUsed(config.selectedDns.toUpperCase(), dnsIP),
+        'info',
+        { i18nKey: 'logDnsUsed', i18nParams: [config.selectedDns.toUpperCase(), dnsIP] },
+      );
     } else {
-      addLog(t.logDnsDefault, 'info');
+      addLog(t.logDnsDefault, 'info', { i18nKey: 'logDnsDefault' });
     }
     
     isRetrying.current = false;
 
     try {
-      // Base arguments
+      // Zaman aşımı: güçlü modda biraz daha toleranslı, hızlı modda daha agresif
+      const TIMEOUT_MS = configRef.current.dpiMethod === '1' ? 3500 : 2500;
+
+      const listenAddr = `${bindAddr}:${port}`;
+
       const args = [
-          '-listen-port', port.toString(),
-          '-listen-addr', bindAddr // ✅ Flag updated to match binary
+        '--clean', // Ev / config dosyasını yok say; sadece bizim flag'ler geçerli (timeout vs. doğru kalsın)
+        '--listen-addr', listenAddr,
+        '--timeout', TIMEOUT_MS.toString(),
+        '--silent',
+        '--log-level', 'info',
       ];
-      
-      // ✅ Sadece DNS seçiliyse ekle
-      if (dnsIP) {
-        args.push('-dns-addr', dnsIP);
+
+      // DNS ayarı: sistem veya seçili sağlayıcı (geçersiz key → sistem)
+      if (config.selectedDns === 'system' || !dnsIP) {
+        args.push('--dns-mode', 'system');
+      } else {
+        args.push('--dns-addr', `${dnsIP}:53`, '--dns-mode', 'udp');
       }
-      
-      // Diğer parametreler
-      args.push(
-        '-window-size', configRef.current.dpiMethod || '1', 
-        '-enable-doh',            
-        '-timeout', '5000'        
-      );
-      
+
+      // Güçlü / Hızlı mod için HTTPS profili (wpcap gerektirmeyecek şekilde: fake-count kullanmıyoruz)
+      const isStrongMode = (configRef.current.dpiMethod || '1') === '1';
+      if (isStrongMode) {
+        const chunkSize = [4, 8, 16].includes(Number(configRef.current.httpsChunkSize))
+          ? String(configRef.current.httpsChunkSize)
+          : '8';
+        args.push(
+          '--https-split-mode', 'chunk',
+          '--https-chunk-size', chunkSize,
+          '--https-disorder',
+        );
+      } else {
+        // En hafif profil, en düşük gecikme
+        args.push('--https-split-mode', 'sni');
+      }
+
       const command = Command.sidecar('binaries/bypax-proxy', args);
 
       
       let connectionConfirmed = false;
       let isReady = false;
 
-      // Optimized regex pattern - compiled once
-      const SKIP_PATTERN = /\[(?:PROXY|DNS|HTTPS|CACHE)\]|method:\s*CONNECT|cache (?:miss|hit)|resolving|routing|resolution took|new conn|client sent hello|shouldExploit|useSystemDns|fragmentation|conn established|writing chunked|caching \d+ records|[a-f0-9]{8}-[a-f0-9]{8}|d88|Y88|88P|level=|ctrl \+ c|listen_addr|dns_addr|github\.com|spoofdpi/i;
+      // Optimized regex pattern - compiled once (regex literal / karışmasın diye string + new RegExp)
+      const SKIP_PATTERN = new RegExp(
+        '\\[(?:PROXY|DNS|HTTPS|CACHE|app)]|method:\\s*CONNECT|cache (?:miss|hit)|resolving|routing|resolution took|new conn|client sent hello|shouldExploit|useSystemDns|fragmentation|conn established|writing chunked|caching \\d+ records|[a-f0-9]{8}-[a-f0-9]{8}|d88|Y88|88P|level=|ctrl \\+ c|listen_addr|dns_addr|github\\.com|spoofdpi|connection timeout',
+        'i'
+      );
+      // Bağlantı kesilirken / yeniden bağlanırken SpoofDPI tüm tünelleri kapatır; her biri "error handling request" / "wsarecv ... aborted" WRN basar - kullanıcı loguna taşıma
+      const isTunnelShutdownNoise = (l) => (/\[pxy\].*error handling request|unsuccessful tunnel|wsarecv|aborted by the software in your host machine/i.test(l));
 
       const handleOutput = async (line, type) => {
         const trimmedLine = line.trim();
@@ -412,6 +480,7 @@ function App() {
         if (trimmedLine.length === 0) return;
         if (/^(DBG|INF|WRN|ERR)\s+\d{4}-/.test(trimmedLine)) return;
         if (line.includes('888')) return;
+        if (isTunnelShutdownNoise(line)) return;
 
         if (SKIP_PATTERN.test(line)) return;
 
@@ -419,40 +488,82 @@ function App() {
         const alphaCount = line.replace(/[^a-zA-ZğüşıöçĞÜŞİÖÇ]/g, '').length;
         if (alphaCount < 5 && trimmedLine.length > 3) return;
         
-        let friendlyMsg = null;
+        let friendlyKey = null;
+        let friendlyParams = [];
+
+        const isWpcapError =
+          lowerLine.includes("couldn't load wpcap.dll") ||
+          lowerLine.includes('error starting network detector');
+
+        if (isWpcapError) {
+          fatalErrorRef.current = true;
+          friendlyKey = 'logWpcapMissing';
+        }
+
+        // Port hatası (sadece gerçekten "in use" hatalarında tetikle)
+        const isPortInUse =
+          (lowerLine.includes('bind') || lowerLine.includes('yuva adresi')) &&
+          (lowerLine.includes('already in use') || lowerLine.includes('only one usage'));
         
         if (lowerLine.includes('listening on') || lowerLine.includes('created a listener')) {
           isReady = true;
-          friendlyMsg = `✓ SpoofDPI Motoru başlatıldı (Port: ${port})`;
+          friendlyKey = 'logSpoofReady';
+          friendlyParams = [port];
         } else if (lowerLine.includes('server started')) {
           isReady = true;
-          friendlyMsg = "✓ Bypax motoru aktif";
-        } else if (lowerLine.includes('bind') || lowerLine.includes('usage') || lowerLine.includes('yuva adresi')) {
-          friendlyMsg = `⚠ Port ${port} dolu, başka port deneniyor...`;
+          friendlyKey = 'logEngineActive';
+        } else if (isPortInUse) {
+          friendlyKey = 'logPortBusy';
+          friendlyParams = [port];
         } else if (lowerLine.includes('initializing')) {
-          friendlyMsg = `⏳ Motor başlatılıyor...`;
+          friendlyKey = 'logInitializing';
         }
         
-        if (friendlyMsg) {
-          addLog(friendlyMsg, type === 'warn' ? 'warn' : 'success');
+        if (friendlyKey) {
+          const msg = resolveI18nMessage(friendlyKey, friendlyParams);
+          addLog(msg, type === 'warn' ? 'warn' : 'error', {
+            i18nKey: friendlyKey,
+            i18nParams: friendlyParams,
+          });
+        } else {
+          // Friendly mapping yoksa, ham SpoofDPI çıktısını da göster ki hata detayları kaybolmasın
+          addLog(trimmedLine, type === 'warn' ? 'warn' : 'info');
         }
         
-        // Wait for port to be actually ready
+        // Wait for port to be actually ready (listener log geldikten sonra kısa bekle; SpoofDPI 1.2.1 bazen geç bind ediyor)
         if (!connectionConfirmed && isReady) {
           connectionConfirmed = true;
-          
+          await new Promise(r => setTimeout(r, 400));
           const portReady = await waitForPort(port);
           if (!portReady) {
-            addLog(`Port ${port} açılamadı, yeniden deneniyor...`, 'warn');
+            addLog(t.logPortRetryOpen(port), 'warn', {
+              i18nKey: 'logPortRetryOpen',
+              i18nParams: [port],
+            });
+            // Sonraki portu dene: process'i kapat, Rust yeni port verecek, yeniden başlat
+            if (portRetryCount < 19) {
+              isRetrying.current = true;
+              if (childProcess.current) {
+                childProcess.current.kill().catch(() => {});
+                childProcess.current = null;
+              }
+              setTimeout(() => {
+                isRetrying.current = false;
+                startEngine(0, portRetryCount + 1);
+              }, 2000);
+            }
             return;
           }
           
           setCurrentPort(port);
           try {
             await invoke('set_system_proxy', { port });
-            addLog(t.logProxySet(port), 'success');
+            addLog(t.logProxySet(port), 'success', { i18nKey: 'logProxySet', i18nParams: [port] });
           } catch (err) {
-            addLog(`Proxy ayarlanamadı: ${err}`, 'error');
+            addLog(t.logProxySetError(err), 'error', {
+              i18nKey: 'logProxySetError',
+              i18nParams: [err],
+            });
             return;
           }
           
@@ -462,18 +573,27 @@ function App() {
           
           setIsConnected(true);
           setIsProcessing(false);
-          addLog(t.logConnected, 'success');
+          addLog(t.logConnected, 'success', { i18nKey: 'logConnected' });
           notifyUser('Bypax', t.logConnected, 'connect');
-          updateTrayTooltip('connected'); 
           updateTrayTooltip('connected');
+          if (configRef.current.lanSharing) {
+            (async () => {
+              try {
+                await invoke('start_pac_server', { proxyPort: port });
+                addLog(t.logPacStarted, 'success', { i18nKey: 'logPacStarted' });
+              } catch (e) {
+                addLog(t.logPacStartError(e), 'warn', { i18nKey: 'logPacStartError', i18nParams: [e] });
+              }
+            })();
+          }
         }
 
-        const isPortError = lowerLine.includes('bind') || 
-                            lowerLine.includes('usage') || 
-                            lowerLine.includes('listener') || 
-                            lowerLine.includes('kullanıma izin veriliyor'); 
+        const isPortError = isPortInUse;
 
-        if (isPortError && (lowerLine.includes('error') || lowerLine.includes('fail') || lowerLine.includes('ftl')) && !isRetrying.current) {
+        if (!fatalErrorRef.current &&
+            isPortError &&
+            (lowerLine.includes('error') || lowerLine.includes('fail') || lowerLine.includes('ftl')) &&
+            !isRetrying.current) {
           isRetrying.current = true;
           
           if (childProcess.current) {
@@ -491,17 +611,23 @@ function App() {
 
       command.on('close', data => {
         if (!isRetrying.current) {
-          const wasConnected = isConnected;
           const isUnexpectedClose = data.code !== 0 && data.code !== null;
           
           // ✅ ÖNCE user intent kontrol et
           if (userIntentDisconnect.current) {
             // Kullanıcı kasıtlı kapattı - normal mesaj göster
-            addLog('Bypax motoru kapatıldı.', 'info');
+            addLog(t.logEngineStoppedGrace, 'info', { i18nKey: 'logEngineStoppedGrace' });
             setIsConnected(false);
             setIsProcessing(false);
             childProcess.current = null;
-            clearProxy(true).catch(console.error);
+            (async () => {
+              try {
+                await invoke('stop_pac_server');
+                await clearProxy(true);
+              } catch (err) {
+                console.error(err);
+              }
+            })();
             
             // Reset flags
             retryCount.current = 0;
@@ -511,10 +637,10 @@ function App() {
           
           // Kullanıcı kasıtlı kapatmadı - beklenmedik kapanma
           if (isUnexpectedClose) {
-              const warnMsg = `⚠️ ${t.logEngineStopped(data.code)}`;
-              addLog(warnMsg, 'warn');
+            const warnMsg = `⚠️ ${t.logEngineStopped(data.code)}`;
+            addLog(warnMsg, 'warn', { i18nKey: 'logEngineStopped', i18nParams: [data.code] });
           } else {
-              addLog('Bypax motoru kapatıldı.', 'info');
+            addLog(t.logEngineStoppedGrace, 'info', { i18nKey: 'logEngineStoppedGrace' });
           }
           
           // ✅ childProcess null yapılmadan önce backup al
@@ -523,7 +649,14 @@ function App() {
           setIsConnected(false);
           setIsProcessing(false);
           childProcess.current = null;
-          clearProxy(true).catch(console.error);
+          (async () => {
+            try {
+              await invoke('stop_pac_server');
+              await clearProxy(true);
+            } catch (err) {
+              console.error(err);
+            }
+          })();
           updateTrayTooltip('disconnected'); // ✅ Bağlantı koptu (geçici)
           
           // ✅ Otomatik yeniden bağlanma kontrol
@@ -532,10 +665,11 @@ function App() {
           const shouldReconnect = 
             autoReconnectEnabled &&               // Ayarda açık mı?
             !userIntentDisconnect.current &&      // Kullanıcı kasıtlı kapatmadı mı?
+            !fatalErrorRef.current &&             // Ölümcül hata yok mu? (örn. wpcap.dll eksik)
             hadActiveProcess;                     // Process çalışıyor muydu?
           
           if (shouldReconnect) {
-            addLog(`🔄 ${t.logAutoReconnect}`, 'info');
+            addLog(`🔄 ${t.logAutoReconnect}`, 'info', { i18nKey: 'logAutoReconnect' });
             notifyUser('BypaxDPI', t.logAutoReconnect, 'disconnect');
             setIsProcessing(true);
             attemptReconnect();
@@ -557,9 +691,11 @@ function App() {
 
              try {
                 await invoke('set_system_proxy', { port: port });
-                addLog(t.logProxySet(port), 'success');
              } catch (err) {
-                addLog(`Proxy ayarlanamadı: ${err}`, 'error');
+                addLog(t.logProxySetError(err), 'error', {
+                  i18nKey: 'logProxySetError',
+                  i18nParams: [err],
+                });
              }
 
              // ✅ Başarılı bağlantı - retry mekanizmasını sıfırla
@@ -568,17 +704,29 @@ function App() {
 
              setIsConnected(true);
              setIsProcessing(false);
-             addLog(t.logConnected, 'info');
+             addLog(t.logConnected, 'info', { i18nKey: 'logConnected' });
              notifyUser('BypaxDPI', t.logConnected, 'connect');
              updateTrayTooltip('connected'); // ✅ Auto-connect başarılı
+             if (configRef.current.lanSharing) {
+               try {
+                 await invoke('start_pac_server', { proxyPort: port });
+                 addLog(t.logPacStarted, 'success', { i18nKey: 'logPacStarted' });
+               } catch (e) {
+                 addLog(t.logPacStartError(e), 'warn', { i18nKey: 'logPacStartError', i18nParams: [e] });
+               }
+             }
         }
       }, 2000); // (Fail-safe timeout)
 
     } catch (e) {
-      addLog(t.logEngineStartError(e), 'error');
+      addLog(t.logEngineStartError(e), 'error', { i18nKey: 'logEngineStartError', i18nParams: [e] });
       setIsConnected(false);
       setIsProcessing(false);
-      clearProxy();
+      try {
+        await clearProxy();
+      } catch (err) {
+        console.error(err);
+      }
     }
   };
 
@@ -606,20 +754,24 @@ function App() {
       setIsProcessing(true);
       if (childProcess.current) {
         try {
-          addLog(t.logDisconnected, 'warn');
+          addLog(t.logDisconnected, 'warn', { i18nKey: 'logDisconnected' });
+          try { await invoke('stop_pac_server'); } catch (_) {}
           await childProcess.current.kill();
         } catch (e) {
-          addLog(`Servis durdurma hatası: ${e}`, 'error');
+          addLog(t.logServiceStopError(e), 'error', {
+            i18nKey: 'logServiceStopError',
+            i18nParams: [e],
+          });
         }
         childProcess.current = null;
       }
       setIsConnected(false);
       await clearProxy(); 
-      addLog('Servis Durduruldu', 'success');
+      addLog(t.logServiceStopped, 'success', { i18nKey: 'logServiceStopped' });
 
       // Eğer kapatma (shutdown) sırasındaysa, bildirim yollama.
       if (!isAppClosing) {
-         notifyUser('BypaxDPI', 'Bağlantı başarıyla sonlandırıldı.', 'disconnect_manual'); // Özel notification event tipi
+         notifyUser('BypaxDPI', t.notifDisconnectManual, 'disconnect_manual'); // Özel notification event tipi
       }
       
       setIsProcessing(false);
@@ -642,24 +794,80 @@ function App() {
   // isAppClosing state - uygulamayı kapatırken/tepsiye alırken sahte disconnect atlaması
   const [isAppClosing, setIsAppClosing] = useState(false);
 
-  // ✅ LAN Sharing Değişince Restart (Side-Effect)
-  useEffect(() => {
-      if (config.lanSharing !== configRef.current.lanSharing) {
-           if (isConnected) {
-               addLog(t.logLanRestart, 'warn');
-               childProcess.current?.kill().catch(() => {});
-               childProcess.current = null;
-               setIsConnected(false);
-               setTimeout(() => startEngine(0), 1500); // 1.5s bekle (Portun boşa çıkması için)
-           }
-      }
-  }, [config.lanSharing]);
-
   const configRef = useRef(config);
 
   useEffect(() => {
     configRef.current = config;
   }, [config]);
+
+  // ✅ LAN Sharing değişince bağlı bağlantıyı yeni ayarla yeniden başlat
+  useEffect(() => {
+    if (prevLanSharingRef.current === config.lanSharing) return;
+    prevLanSharingRef.current = config.lanSharing;
+
+    if (!isConnected) return;
+
+    addLog(t.logLanRestart, 'warn', { i18nKey: 'logLanRestart' });
+
+    // Kullanıcıya süreç boyunca "yeniden bağlanıyor" hissi ver
+    setIsProcessing(true);
+    updateTrayTooltip('connecting');
+
+    // Manuel restart: auto-reconnect karışmasın
+    userIntentDisconnect.current = true;
+    if (retryTimer.current) {
+      clearTimeout(retryTimer.current);
+      retryTimer.current = null;
+    }
+
+    if (childProcess.current) {
+      childProcess.current.kill().catch(() => {});
+      childProcess.current = null;
+    }
+    (async () => {
+      try { await invoke('stop_pac_server'); } catch (_) {}
+    })();
+    setIsConnected(false);
+
+    setTimeout(() => {
+      userIntentDisconnect.current = false;
+      setIsProcessing(true);
+      startEngine(0);
+    }, 2500); // Portun serbest kalması için (SpoofDPI 1.2.1 / TIME_WAIT)
+  }, [config.lanSharing, isConnected]);
+
+  // ✅ DPI modu veya chunk size değişince bağlı bağlantıyı yeniden başlat
+  useEffect(() => {
+    const chunkSize = config.httpsChunkSize ?? 8;
+    if (prevDpiMethodRef.current === config.dpiMethod && prevChunkSizeRef.current === chunkSize) return;
+    prevDpiMethodRef.current = config.dpiMethod;
+    prevChunkSizeRef.current = chunkSize;
+
+    if (!isConnected) return;
+
+    addLog(t.logDpiRestart, 'warn', { i18nKey: 'logDpiRestart' });
+
+    setIsProcessing(true);
+    updateTrayTooltip('connecting');
+
+    userIntentDisconnect.current = true;
+    if (retryTimer.current) {
+      clearTimeout(retryTimer.current);
+      retryTimer.current = null;
+    }
+
+    if (childProcess.current) {
+      childProcess.current.kill().catch(() => {});
+      childProcess.current = null;
+    }
+    setIsConnected(false);
+
+    setTimeout(() => {
+      userIntentDisconnect.current = false;
+      setIsProcessing(true);
+      startEngine(0);
+    }, 2500); // Portun serbest kalması için (SpoofDPI 1.2.1 / TIME_WAIT)
+  }, [config.dpiMethod, config.httpsChunkSize, isConnected]);
 
   useEffect(() => {
     // Initial cleanup on mount
@@ -685,7 +893,7 @@ function App() {
         
         setIsAppClosing(true);
 
-        if (configRef.current.minimizeToTray) {
+        if (configRef.current.minimizeToTray && !trayQuitRef.current) {
           setIsAppClosing(false); 
           try {
             await win.hide();
@@ -704,6 +912,9 @@ function App() {
           );
           if (!confirmed) {
              setIsAppClosing(false);
+             if (trayQuitRef.current) {
+               trayQuitRef.current = false;
+             }
              return;
           }
         }
@@ -725,16 +936,27 @@ function App() {
         } catch (e) {
           console.error('Cleanup failed:', e);
         }
-        await exit(0);
+        try {
+          await invoke('quit_app');
+        } catch (e) {
+          console.error('Quit app failed:', e);
+          await getCurrentWindow().destroy();
+        }
       });
-      return unlisten;
+      const unlistenTrayQuit = await win.listen('tray_quit', () => {
+        trayQuitRef.current = true;
+      });
+      return { unlisten, unlistenTrayQuit };
     };
 
     let unlistenFn;
-    initListener().then(fn => unlistenFn = fn);
+    initListener().then(fn => (unlistenFn = fn));
 
     return () => {
-      if (unlistenFn) unlistenFn();
+      if (unlistenFn) {
+        if (unlistenFn.unlisten) unlistenFn.unlisten();
+        if (unlistenFn.unlistenTrayQuit) unlistenFn.unlistenTrayQuit();
+      }
       
       // ✅ Retry timer'ı temizle
       if (retryTimer.current) {
@@ -746,6 +968,7 @@ function App() {
       const cleanup = async () => {
         setIsAppClosing(true);
         userIntentDisconnect.current = true; // prevent false notifications on reload/close
+        try { await invoke('stop_pac_server'); } catch (_) {}
         if (childProcess.current) {
           try {
             await childProcess.current.kill();
@@ -765,14 +988,14 @@ function App() {
     };
   }, []);
 
- const handleExit = async () => {
+  const handleExit = async () => {
     // ✅ Zaten çıkış yapılıyorsa tekrar tetikleme
     if (isExiting.current) return;
 
     if (configRef.current.requireConfirmation !== false) {
       const confirmed = await customConfirm(
-          t.confirmExitDesc || 'Bypax motorunu durdurup çıkmak istediğinize emin misiniz?', 
-          { title: t.confirmExitTitle || 'Çıkış' }
+        t.confirmExitDesc || 'Bypax motorunu durdurup çıkmak istediğinize emin misiniz?',
+        { title: t.confirmExitTitle || 'Çıkış' }
       );
       if (!confirmed) return;
     }
@@ -781,25 +1004,30 @@ function App() {
     isExiting.current = true;
     setIsAppClosing(true);
     userIntentDisconnect.current = true; // Reconnect engelle
-    addLog('Kapatma başlatılıyor...', 'warn');
-    
+    addLog(t.logShutdownStarting, 'warn', { i18nKey: 'logShutdownStarting' });
+
     // ✅ Timer'ı temizle
     if (retryTimer.current) {
       clearTimeout(retryTimer.current);
       retryTimer.current = null;
     }
-    
+
     try {
       if (childProcess.current) {
-        await childProcess.current.kill().catch(() => {}); 
+        await childProcess.current.kill().catch(() => {});
         childProcess.current = null;
-        addLog('İşlem sonlandırıldı', 'success');
+        addLog(t.logProcessStopped, 'success', { i18nKey: 'logProcessStopped' });
       }
+      try { await invoke('stop_pac_server'); } catch (_) {}
       await clearProxy(true);
-      // ✅ Direkt exit(0) çağır — close() çağrısı onCloseRequested'ı tetikler ve çift çıkışa neden olur
-      await exit(0);
     } catch (e) {
-      await exit(1);
+      console.error('Cleanup failed:', e);
+    }
+    try {
+      await invoke('quit_app');
+    } catch (e) {
+      console.error('Quit app failed:', e);
+      await getCurrentWindow().destroy();
     }
   };
 
@@ -1033,7 +1261,14 @@ function App() {
                     }}
                     onMouseEnter={(e) => e.target.style.opacity = '0.9'}
                     onMouseLeave={(e) => e.target.style.opacity = '1'}
-                    onClick={() => exit(0)}
+                    onClick={async () => {
+                      try {
+                        await invoke('quit_app');
+                      } catch (e) {
+                        console.error('Quit app failed:', e);
+                        await getCurrentWindow().destroy();
+                      }
+                    }}
                   >
                     {t.adminClose}
                   </button>
@@ -1319,38 +1554,103 @@ function App() {
                     </div>
                     
                     <div className="modal-body">
-                        <p style={{ fontSize: '0.88rem', color: '#94a3b8', lineHeight: '1.6', marginBottom: '1.5rem' }}>
-                            <span dangerouslySetInnerHTML={{ __html: t.modalDesc }} />
-                        </p>
-                        
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.5rem' }}>
-                            <div style={{ flex: 1 }}>
+                        {/* Sekmeler */}
+                        <div style={{ display: 'flex', gap: '4px', marginBottom: '1.25rem', background: 'rgba(255,255,255,0.06)', padding: '4px', borderRadius: '10px' }}>
+                            <button
+                              type="button"
+                              onClick={() => setConnectionModalTab('pac')}
+                              style={{
+                                flex: 1,
+                                padding: '0.5rem 0.75rem',
+                                borderRadius: '8px',
+                                border: 'none',
+                                background: connectionModalTab === 'pac' ? 'rgba(34, 197, 94, 0.25)' : 'transparent',
+                                color: connectionModalTab === 'pac' ? '#4ade80' : '#94a3b8',
+                                fontWeight: connectionModalTab === 'pac' ? 600 : 500,
+                                fontSize: '0.8rem',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s'
+                              }}
+                            >
+                              {t.modalTabPac}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setConnectionModalTab('manual')}
+                              style={{
+                                flex: 1,
+                                padding: '0.5rem 0.75rem',
+                                borderRadius: '8px',
+                                border: 'none',
+                                background: connectionModalTab === 'manual' ? 'rgba(59, 130, 246, 0.2)' : 'transparent',
+                                color: connectionModalTab === 'manual' ? '#60a5fa' : '#94a3b8',
+                                fontWeight: connectionModalTab === 'manual' ? 600 : 500,
+                                fontSize: '0.8rem',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s'
+                              }}
+                            >
+                              {t.modalTabManual}
+                            </button>
+                        </div>
+
+                        {connectionModalTab === 'pac' && (
+                          <>
+                            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '0.5rem' }}>
+                              <QRCodeSVG value={`http://${lanIp}:8787/`} size={120} level="M" />
+                            </div>
+                            <p style={{ fontSize: '0.75rem', color: '#71717a', textAlign: 'center', margin: '0 0 1rem' }}>
+                              {t.modalPacQrCaption}
+                            </p>
+                            <p style={{ fontSize: '0.85rem', color: '#94a3b8', lineHeight: '1.5', marginBottom: '0.75rem' }}>
+                              <span dangerouslySetInnerHTML={{ __html: t.modalDescPac }} />
+                            </p>
+                            <div style={{ marginBottom: '0.75rem' }}>
+                              <label style={{ display: 'block', fontSize: '0.75rem', color: '#22c55e', marginBottom: '0.5rem', textTransform: 'uppercase', fontWeight: '600', letterSpacing: '0.05em' }}>
+                                {t.modalPacUrl}
+                              </label>
+                              <div 
+                                className="code-box" 
+                                onClick={() => writeText(`http://${lanIp}:8787/proxy.pac`)}
+                                title="Kopyala"
+                              >
+                                <span style={{ fontSize: '0.8rem', wordBreak: 'break-all' }}>http://{lanIp}:8787/proxy.pac</span>
+                                <Copy size={16} color="#71717a" />
+                              </div>
+                            </div>
+                            <p style={{ fontSize: '0.8rem', color: '#94a3b8', lineHeight: '1.5', marginBottom: 0 }}>
+                              <span dangerouslySetInnerHTML={{ __html: t.modalPacQrHint }} />
+                            </p>
+                          </>
+                        )}
+
+                        {connectionModalTab === 'manual' && (
+                          <>
+                            <p style={{ fontSize: '0.85rem', color: '#94a3b8', lineHeight: '1.5', marginBottom: '1rem' }}>
+                              <span dangerouslySetInnerHTML={{ __html: t.modalDesc }} />
+                            </p>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.5rem' }}>
+                              <div>
                                 <label style={{ display: 'block', fontSize: '0.75rem', color: '#71717a', marginBottom: '0.5rem', textTransform: 'uppercase', fontWeight: '600', letterSpacing: '0.05em' }}>
                                   {t.modalHost}
                                 </label>
-                                <div 
-                                  className="code-box" 
-                                  onClick={() => writeText(lanIp)}
-                                  title="Kopyala"
-                                >
-                                    <span>{lanIp}</span>
-                                    <Copy size={16} color="#71717a" />
+                                <div className="code-box" onClick={() => writeText(lanIp)} title="Kopyala">
+                                  <span>{lanIp}</span>
+                                  <Copy size={16} color="#71717a" />
                                 </div>
-                            </div>
-                            <div style={{ flex: 1 }}>
+                              </div>
+                              <div>
                                 <label style={{ display: 'block', fontSize: '0.75rem', color: '#71717a', marginBottom: '0.5rem', textTransform: 'uppercase', fontWeight: '600', letterSpacing: '0.05em' }}>
                                   {t.modalPort}
                                 </label>
-                                <div 
-                                  className="code-box" 
-                                  onClick={() => writeText(currentPort.toString())}
-                                  title="Kopyala"
-                                >
-                                    <span>{currentPort}</span>
-                                    <Copy size={16} color="#71717a" />
+                                <div className="code-box" onClick={() => writeText(currentPort.toString())} title="Kopyala">
+                                  <span>{currentPort}</span>
+                                  <Copy size={16} color="#71717a" />
                                 </div>
+                              </div>
                             </div>
-                        </div>
+                          </>
+                        )}
 
                         <button 
                             style={{ 

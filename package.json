@@ -8,7 +8,9 @@
     "build": "vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "update-proxy-icon": "node change-icon.js"
+    "update-proxy-icon": "node change-icon.js",
+    "copy-proxy": "node scripts/copy-proxy.cjs",
+    "build-proxy": "node scripts/build-proxy.cjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.10.1",
@@ -21,6 +23,7 @@
     "@tauri-apps/plugin-shell": "^2.3.4",
     "framer-motion": "^12.29.2",
     "lucide-react": "^0.563.0",
+    "qrcode.react": "^4.2.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },

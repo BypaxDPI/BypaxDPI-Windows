@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ChevronLeft, Globe, Power, Zap, RotateCw, Activity, 
@@ -311,6 +311,7 @@ const Settings = ({ onBack, config, updateConfig }) => {
               {/* ========== 2. BAĞLANTI YÖNTEMİ ========== */}
               <div className="v2-section">
                 <div className="v2-section-title">{t.sectionMethod}</div>
+                <p style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '0.35rem', marginBottom: '0.75rem', lineHeight: 1.4 }}>{t.sectionMethodWhy}</p>
                 <div className="v2-card">
                     {/* Hızlı Mod (Önerilen) - Üstte */}
                     <div 
@@ -359,8 +360,53 @@ const Settings = ({ onBack, config, updateConfig }) => {
                          {config.dpiMethod === '1' && <div className="v2-radio-dot" />}
                       </div>
                     </div>
+
+                    {/* Chunk size – tek parça, satırın tamamı, aralarında çizgi yok, eşit boşluk */}
+                    {config.dpiMethod === '1' && (
+                      <>
+                        <div className="v2-divider" />
+                        <div style={{ display: 'flex', width: '100%', padding: 0, minHeight: 0, boxSizing: 'border-box' }}>
+                          {[
+                            { value: 4, label: '4' },
+                            { value: 8, label: '8' },
+                            { value: 16, label: '16' },
+                          ].map((opt) => {
+                            const isSelected = Number(config.httpsChunkSize || 8) === opt.value;
+                            return (
+                              <button
+                                key={opt.value}
+                                type="button"
+                                onClick={() => updateConfig('httpsChunkSize', opt.value)}
+                                title={opt.value === 4 ? t.chunkSize4 : opt.value === 8 ? t.chunkSize8 : t.chunkSize16}
+                                style={{
+                                  flex: 1,
+                                  height: '36px',
+                                  border: 'none',
+                                  margin: 0,
+                                  padding: '0 12px',
+                                  background: isSelected ? 'rgba(59, 130, 246, 0.18)' : 'transparent',
+                                  color: isSelected ? '#60a5fa' : '#94a3b8',
+                                  fontSize: '0.9rem',
+                                  fontWeight: 600,
+                                  cursor: 'pointer',
+                                  transition: 'background 0.2s, color 0.2s',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                }}
+                              >
+                                {opt.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </>
+                    )}
                 </div>
               </div>
+              {config.dpiMethod === '1' && (
+                <p style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '0.35rem', marginBottom: 0, lineHeight: 1.4 }}>{t.chunkSizeDesc}</p>
+              )}
 
               {/* ========== 2. AĞ AYARLARI ========== */}
               <div className="v2-section">

@@ -28,20 +28,10 @@ dist-ssr
 target
 src-tauri/target
 
-# Firebase
-.firebase/
-firebase-debug.log
-firestore-debug.log
-firebase-debug.*.log
-
 # OS
 Thumbs.db
 ehthumbs.db
 Desktop.ini
-
-# Firebase Config/Secrets
-src/firebase.js
-firebase.json
 
 # Environment Variables
 .env
@@ -54,3 +44,5 @@ spoofdpi/
 *.dll
 *.so
 *.dylib
+
+SpoofDPI-1.2.1/
