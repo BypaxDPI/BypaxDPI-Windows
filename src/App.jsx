@@ -1,59 +1,77 @@
-import Settings from './Settings';
-import { motion, AnimatePresence } from 'framer-motion';
-import { disable, enable, isEnabled } from '@tauri-apps/plugin-autostart';
-import { useState, useRef, useEffect, useMemo } from 'react';
-import { Command, open } from '@tauri-apps/plugin-shell';
-import { invoke } from '@tauri-apps/api/core';
-import { getTranslations } from './i18n';
+import Settings from "./Settings";
+import { motion, AnimatePresence } from "framer-motion";
+import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart";
+import { useState, useRef, useEffect, useMemo } from "react";
+import { Command, open } from "@tauri-apps/plugin-shell";
+import { invoke } from "@tauri-apps/api/core";
+import { getTranslations } from "./i18n";
 
 // Re-add missing imports
-import { Power, Shield, Settings as SettingsIcon, FileText, X, Copy, Trash2, WifiOff, Globe, Smartphone, HelpCircle, AlertTriangle } from 'lucide-react';
-import { getCurrentWindow } from '@tauri-apps/api/window';
-import { writeText } from '@tauri-apps/plugin-clipboard-manager';
-import { isPermissionGranted, requestPermission, sendNotification, onAction } from '@tauri-apps/plugin-notification';
-import { QRCodeSVG } from 'qrcode.react';
+import {
+  Power,
+  Shield,
+  Settings as SettingsIcon,
+  FileText,
+  X,
+  Copy,
+  Trash2,
+  WifiOff,
+  Globe,
+  Smartphone,
+  HelpCircle,
+  AlertTriangle,
+} from "lucide-react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+import {
+  isPermissionGranted,
+  requestPermission,
+  sendNotification,
+  onAction,
+} from "@tauri-apps/plugin-notification";
+import { QRCodeSVG } from "qrcode.react";
 
-import './App.css';
+import "./App.css";
 
 function App() {
   const [isConnected, setIsConnected] = useState(false);
   const [logs, setLogs] = useState([]);
   const [currentPort, setCurrentPort] = useState(8080);
-  const [lanIp, setLanIp] = useState('127.0.0.1'); // ✅ LAN IP State
+  const [lanIp, setLanIp] = useState("127.0.0.1"); // ✅ LAN IP State
   const [showConnectionModal, setShowConnectionModal] = useState(false); // ✅ Modal State
-  const [connectionModalTab, setConnectionModalTab] = useState('pac'); // pac | manual
+  const [connectionModalTab, setConnectionModalTab] = useState("pac"); // pac | manual
   const [isProcessing, setIsProcessing] = useState(false);
   const [showLogs, setShowLogs] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(true); 
+  const [isAdmin, setIsAdmin] = useState(true);
   const [isOnline, setIsOnline] = useState(navigator.onLine); // ✅ Internet Durumu
 
   // Check Admin on Mount
   useEffect(() => {
-    invoke('check_admin')
-      .then(result => {
+    invoke("check_admin")
+      .then((result) => {
         setIsAdmin(result);
         if (!result) {
-          addLog(t.logAdminMissing, 'error', { i18nKey: 'logAdminMissing' });
+          addLog(t.logAdminMissing, "error", { i18nKey: "logAdminMissing" });
         }
       })
-      .catch(err => {
-        console.error('Admin check warning:', err);
-        setIsAdmin(true); 
+      .catch((err) => {
+        console.error("Admin check warning:", err);
+        setIsAdmin(true);
       });
 
     // ✅ Internet Connection Listeners
     const handleOnline = () => {
-        setIsOnline(true);
-        addLog(t.logInternetBack, 'success', { i18nKey: 'logInternetBack' });
+      setIsOnline(true);
+      addLog(t.logInternetBack, "success", { i18nKey: "logInternetBack" });
     };
     const handleOffline = () => {
-        setIsOnline(false);
-        addLog(t.logInternetLost, 'error', { i18nKey: 'logInternetLost' });
+      setIsOnline(false);
+      addLog(t.logInternetLost, "error", { i18nKey: "logInternetLost" });
     };
 
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
 
     // ✅ Bildirime tıklanınca uygulamayı öne getir
     let unlistenNotificationAction = null;
@@ -70,47 +88,50 @@ function App() {
     setupNotificationListener();
 
     return () => {
-        window.removeEventListener('online', handleOnline);
-        window.removeEventListener('offline', handleOffline);
-        if (unlistenNotificationAction) {
-          unlistenNotificationAction();
-        }
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+      if (unlistenNotificationAction) {
+        unlistenNotificationAction();
+      }
     };
   }, []);
-  
+
   // Settings State
   const [config, setConfig] = useState(() => {
     const defaultSettings = {
-      language: 'tr',
+      language: "tr",
       autoStart: false,
       autoConnect: false,
       minimizeToTray: false,
-      dnsMode: 'manual',
-      selectedDns: 'system',
+      dnsMode: "manual",
+      selectedDns: "system",
       autoReconnect: true,
-      dpiMethod: '1',
-      httpsChunkSize: 8
+      dpiMethod: "1",
+      httpsChunkSize: 8,
     };
-    
-    const saved = localStorage.getItem('bypax_config');
+
+    const saved = localStorage.getItem("bypax_config");
     if (saved) {
-        try {
-            return { ...defaultSettings, ...JSON.parse(saved) };
-        } catch (e) {
-            console.error("Failed to parse config:", e);
-            return defaultSettings;
-        }
+      try {
+        return { ...defaultSettings, ...JSON.parse(saved) };
+      } catch (e) {
+        console.error("Failed to parse config:", e);
+        return defaultSettings;
+      }
     }
     return defaultSettings;
   });
 
   // ✅ i18n: Reactive translations (config'den sonra olmalı!)
-  const t = useMemo(() => getTranslations(config.language || 'tr'), [config.language]);
+  const t = useMemo(
+    () => getTranslations(config.language || "tr"),
+    [config.language],
+  );
 
   const childProcess = useRef(null);
   const logsEndRef = useRef(null);
   const isRetrying = useRef(false);
-  
+
   // ✅ Auto-reconnect mekanizması
   const retryCount = useRef(0);
   const retryTimer = useRef(null);
@@ -125,43 +146,43 @@ function App() {
 
   // Constants
   const DNS_MAP = {
-    system: null, 
-    cloudflare: '1.1.1.1',
-    adguard: '94.140.14.14',
-    google: '8.8.8.8',
-    quad9: '9.9.9.9',
-    opendns: '208.67.222.222'
+    system: null,
+    cloudflare: "1.1.1.1",
+    adguard: "94.140.14.14",
+    google: "8.8.8.8",
+    quad9: "9.9.9.9",
+    opendns: "208.67.222.222",
   };
 
-
-
   const updateConfig = (key, value) => {
-    setConfig(prev => {
+    setConfig((prev) => {
       const newConfig = { ...prev, [key]: value };
-      localStorage.setItem('bypax_config', JSON.stringify(newConfig));
+      localStorage.setItem("bypax_config", JSON.stringify(newConfig));
       return newConfig;
     });
   };
 
-
-
   // Custom Confirm State
   const confirmResolver = useRef(null);
-  const [confirmState, setConfirmState] = useState({ isOpen: false, title: '', desc: '' });
+  const [confirmState, setConfirmState] = useState({
+    isOpen: false,
+    title: "",
+    desc: "",
+  });
 
   const customConfirm = (desc, options) => {
     return new Promise((resolve) => {
       setConfirmState({
         isOpen: true,
-        title: options?.title || '',
-        desc: desc
+        title: options?.title || "",
+        desc: desc,
       });
       confirmResolver.current = resolve;
     });
   };
 
   const handleConfirmResult = (result) => {
-    setConfirmState(prev => ({ ...prev, isOpen: false }));
+    setConfirmState((prev) => ({ ...prev, isOpen: false }));
     if (confirmResolver.current) {
       confirmResolver.current(result);
       confirmResolver.current = null;
@@ -171,34 +192,46 @@ function App() {
   const notifyUser = async (title, body, eventType) => {
     try {
       if (configRef.current.notifications === false) return; // Kullanıcı bildirimleri kapattıysa
-      if (eventType === 'connect' && configRef.current.notifyOnConnect === false) return;
-      if (eventType === 'disconnect' && configRef.current.notifyOnDisconnect === false) return;
-      if (eventType === 'disconnect_manual' && configRef.current.notifyOnDisconnect === false) return;
+      if (
+        eventType === "connect" &&
+        configRef.current.notifyOnConnect === false
+      )
+        return;
+      if (
+        eventType === "disconnect" &&
+        configRef.current.notifyOnDisconnect === false
+      )
+        return;
+      if (
+        eventType === "disconnect_manual" &&
+        configRef.current.notifyOnDisconnect === false
+      )
+        return;
 
       let permissionGranted = await isPermissionGranted();
       if (!permissionGranted) {
         const permission = await requestPermission();
-        permissionGranted = permission === 'granted';
+        permissionGranted = permission === "granted";
       }
       if (permissionGranted) {
         sendNotification({ title, body });
       }
     } catch (err) {
-      console.error('Notification error:', err);
+      console.error("Notification error:", err);
     }
   };
 
   const resolveI18nMessage = (key, params = []) => {
-    if (!key) return '';
+    if (!key) return "";
     const value = t[key];
-    if (!value) return '';
-    if (typeof value === 'function') {
+    if (!value) return "";
+    if (typeof value === "function") {
       return value(...params);
     }
     return value;
   };
 
-  const addLog = (msg, type = 'info', meta = {}) => {
+  const addLog = (msg, type = "info", meta = {}) => {
     const { i18nKey, i18nParams } = meta;
 
     let finalMsg = msg;
@@ -208,8 +241,8 @@ function App() {
 
     if (!finalMsg || finalMsg.toString().trim().length === 0) return;
 
-    const cleanMsg = finalMsg.toString().replace(/\x1b\[[0-9;]*m/g, '');
-    setLogs(prev => [
+    const cleanMsg = finalMsg.toString().replace(/\x1b\[[0-9;]*m/g, "");
+    setLogs((prev) => [
       ...prev.slice(-99),
       {
         id: Date.now() + Math.random(),
@@ -224,8 +257,8 @@ function App() {
 
   // Dil değiştiğinde i18n loglarını güncelle
   useEffect(() => {
-    setLogs(prev =>
-      prev.map(log => {
+    setLogs((prev) =>
+      prev.map((log) => {
         if (!log.i18nKey) return log;
         const msg = resolveI18nMessage(log.i18nKey, log.i18nParams || []);
         return { ...log, msg };
@@ -233,27 +266,27 @@ function App() {
     );
   }, [t]);
 
-  const [copyStatus, setCopyStatus] = useState('idle'); // idle, success, error
+  const [copyStatus, setCopyStatus] = useState("idle"); // idle, success, error
 
   const copyLogs = async () => {
     if (logs.length === 0) return;
-    
-    const logText = logs.map(l => `[${l.time}] ${l.msg}`).join('\n');
-    
+
+    const logText = logs.map((l) => `[${l.time}] ${l.msg}`).join("\n");
+
     try {
       await writeText(logText);
-      setCopyStatus('success');
-      setTimeout(() => setCopyStatus('idle'), 1500);
+      setCopyStatus("success");
+      setTimeout(() => setCopyStatus("idle"), 1500);
     } catch (e) {
-      console.error('Tauri clipboard failed, trying navigator:', e);
+      console.error("Tauri clipboard failed, trying navigator:", e);
       try {
         await navigator.clipboard.writeText(logText);
-        setCopyStatus('success');
-        setTimeout(() => setCopyStatus('idle'), 1500);
+        setCopyStatus("success");
+        setTimeout(() => setCopyStatus("idle"), 1500);
       } catch (navError) {
-        console.error('Navigator clipboard also failed:', navError);
-        setCopyStatus('error');
-        setTimeout(() => setCopyStatus('idle'), 1500);
+        console.error("Navigator clipboard also failed:", navError);
+        setCopyStatus("error");
+        setTimeout(() => setCopyStatus("idle"), 1500);
       }
     }
   };
@@ -264,12 +297,15 @@ function App() {
 
   const clearProxy = async (silent = false) => {
     try {
-      await invoke('clear_system_proxy');
+      await invoke("clear_system_proxy");
       if (!silent) {
-        addLog(t.logProxyCleared, 'success', { i18nKey: 'logProxyCleared' });
+        addLog(t.logProxyCleared, "success", { i18nKey: "logProxyCleared" });
       }
     } catch (e) {
-      addLog(t.logProxyClearError(e), 'warn', { i18nKey: 'logProxyClearError', i18nParams: [e] });
+      addLog(t.logProxyClearError(e), "warn", {
+        i18nKey: "logProxyClearError",
+        i18nParams: [e],
+      });
       console.error(e);
     }
   };
@@ -283,29 +319,31 @@ function App() {
   // ✅ Tray tooltip güncelle
   const updateTrayTooltip = async (status) => {
     try {
-      let tooltip = '';
+      let tooltip = "";
       switch (status) {
-        case 'connected':
-          const dnsName = DNS_MAP[config.selectedDns] 
-            ? Object.keys(DNS_MAP).find(key => DNS_MAP[key] === DNS_MAP[config.selectedDns])?.toUpperCase()
-            : 'SYSTEM';
+        case "connected":
+          const dnsName = DNS_MAP[config.selectedDns]
+            ? Object.keys(DNS_MAP)
+                .find((key) => DNS_MAP[key] === DNS_MAP[config.selectedDns])
+                ?.toUpperCase()
+            : "SYSTEM";
           tooltip = `🟢 BypaxDPI - ${t.statusConnected}\n127.0.0.1:${currentPort}\nDNS: ${dnsName}`;
           break;
-        case 'disconnected':
+        case "disconnected":
           tooltip = `🔴 BypaxDPI - ${t.statusInactive}`;
           break;
-        case 'retrying':
+        case "retrying":
           tooltip = `🔄 BypaxDPI - ${t.btnConnecting}\n${retryCount.current}/5...`;
           break;
-        case 'connecting':
+        case "connecting":
           tooltip = `⏳ BypaxDPI - ${t.btnConnecting}`;
           break;
         default:
-          tooltip = '🛡️ BypaxDPI';
+          tooltip = "🛡️ BypaxDPI";
       }
-      await invoke('update_tray_tooltip', { tooltip });
+      await invoke("update_tray_tooltip", { tooltip });
     } catch (e) {
-      console.error('Tray tooltip güncelleme hatası:', e);
+      console.error("Tray tooltip güncelleme hatası:", e);
     }
   };
 
@@ -322,19 +360,25 @@ function App() {
 
     if (currentAttempt >= maxAttempts) {
       // Maksimum deneme aşıldı
-      addLog(`=4 ${t.logMaxRetries}`, 'error', { i18nKey: 'logMaxRetries' });
-      addLog('', 'info');
-      addLog(`=� ${t.logPossibleReasons}`, 'warn', { i18nKey: 'logPossibleReasons' });
-      addLog(`  • ${t.logReasonInternet}`, 'info', { i18nKey: 'logReasonInternet' });
-      addLog(`  • ${t.logReasonFirewall}`, 'info', { i18nKey: 'logReasonFirewall' });
-      addLog(`  • ${t.logReasonPorts}`, 'info', { i18nKey: 'logReasonPorts' });
-      addLog('', 'info');
-      addLog(`=� ${t.logSolutions}`, 'warn', { i18nKey: 'logSolutions' });
-      addLog(`  • ${t.logSolInternet}`, 'info', { i18nKey: 'logSolInternet' });
-      addLog(`  • ${t.logSolFirewall}`, 'info', { i18nKey: 'logSolFirewall' });
-      addLog(`  • ${t.logSolAdmin}`, 'info', { i18nKey: 'logSolAdmin' });
-      addLog(`  • ${t.logSolLogs}`, 'info', { i18nKey: 'logSolLogs' });
-      
+      addLog(`=4 ${t.logMaxRetries}`, "error", { i18nKey: "logMaxRetries" });
+      addLog("", "info");
+      addLog(`=� ${t.logPossibleReasons}`, "warn", {
+        i18nKey: "logPossibleReasons",
+      });
+      addLog(`  • ${t.logReasonInternet}`, "info", {
+        i18nKey: "logReasonInternet",
+      });
+      addLog(`  • ${t.logReasonFirewall}`, "info", {
+        i18nKey: "logReasonFirewall",
+      });
+      addLog(`  • ${t.logReasonPorts}`, "info", { i18nKey: "logReasonPorts" });
+      addLog("", "info");
+      addLog(`=� ${t.logSolutions}`, "warn", { i18nKey: "logSolutions" });
+      addLog(`  • ${t.logSolInternet}`, "info", { i18nKey: "logSolInternet" });
+      addLog(`  • ${t.logSolFirewall}`, "info", { i18nKey: "logSolFirewall" });
+      addLog(`  • ${t.logSolAdmin}`, "info", { i18nKey: "logSolAdmin" });
+      addLog(`  • ${t.logSolLogs}`, "info", { i18nKey: "logSolLogs" });
+
       retryCount.current = 0;
       setIsProcessing(false);
       return;
@@ -344,19 +388,25 @@ function App() {
     retryCount.current++;
 
     if (delay === 0) {
-      addLog(`🔄 ${t.logReconnecting(currentAttempt + 1)}`, 'warn', {
-        i18nKey: 'logReconnecting',
+      addLog(`🔄 ${t.logReconnecting(currentAttempt + 1)}`, "warn", {
+        i18nKey: "logReconnecting",
         i18nParams: [currentAttempt + 1],
       });
       startEngine(8080);
     } else {
-      addLog(`⏳ ${t.logReconnectWait(delay / 1000, currentAttempt + 1)}`, 'warn', {
-        i18nKey: 'logReconnectWait',
-        i18nParams: [delay / 1000, currentAttempt + 1],
-      });
-      updateTrayTooltip('retrying');
+      addLog(
+        `⏳ ${t.logReconnectWait(delay / 1000, currentAttempt + 1)}`,
+        "warn",
+        {
+          i18nKey: "logReconnectWait",
+          i18nParams: [delay / 1000, currentAttempt + 1],
+        },
+      );
+      updateTrayTooltip("retrying");
       retryTimer.current = setTimeout(() => {
-        addLog(`🔄 ${t.logReconnectNow}`, 'info', { i18nKey: 'logReconnectNow' });
+        addLog(`🔄 ${t.logReconnectNow}`, "info", {
+          i18nKey: "logReconnectNow",
+        });
         startEngine(8080);
       }, delay);
     }
@@ -366,20 +416,20 @@ function App() {
   const waitForPort = async (port, maxAttempts = 25) => {
     for (let i = 0; i < maxAttempts; i++) {
       try {
-        const open = await invoke('check_port_open', { port });
+        const open = await invoke("check_port_open", { port });
         if (open) return true;
       } catch (_) {}
-      await new Promise(r => setTimeout(r, 200));
+      await new Promise((r) => setTimeout(r, 200));
     }
     return false;
   };
 
   const startEngine = async (ignoredPort, portRetryCount = 0) => {
-    updateTrayTooltip('connecting'); 
-    
+    updateTrayTooltip("connecting");
+
     // Max 20 retries
     if (portRetryCount >= 20) {
-      addLog(t.logNoPort, 'error', { i18nKey: 'logNoPort' });
+      addLog(t.logNoPort, "error", { i18nKey: "logNoPort" });
       setIsProcessing(false);
       return;
     }
@@ -388,156 +438,174 @@ function App() {
     let configData;
     let port;
     let bindAddr;
-    
+
     try {
-        configData = await invoke('get_sidecar_config', { 
-            allowLanSharing: configRef.current.lanSharing || false 
-        });
-        port = configData.port;
-        bindAddr = configData.bind_address;
-        setLanIp(configData.lan_ip); // IP'yi state'e kaydet
+      configData = await invoke("get_sidecar_config", {
+        allowLanSharing: configRef.current.lanSharing || false,
+      });
+      port = configData.port;
+      bindAddr = configData.bind_address;
+      setLanIp(configData.lan_ip); // IP'yi state'e kaydet
     } catch (e) {
-        addLog(t.logConfigError(e), 'error', { i18nKey: 'logConfigError', i18nParams: [e] });
-        setIsProcessing(false);
-        return;
+      addLog(t.logConfigError(e), "error", {
+        i18nKey: "logConfigError",
+        i18nParams: [e],
+      });
+      setIsProcessing(false);
+      return;
     }
-    
+
     if (childProcess.current) return;
     await clearProxy(true);
 
     const dnsIP = DNS_MAP[config.selectedDns];
-    
-    addLog(t.logEngineStarting(port), 'info', { i18nKey: 'logEngineStarting', i18nParams: [port] });
-    
+
+    addLog(t.logEngineStarting(port), "info", {
+      i18nKey: "logEngineStarting",
+      i18nParams: [port],
+    });
+
     // DNS bilgisi
     if (dnsIP) {
-      addLog(
-        t.logDnsUsed(config.selectedDns.toUpperCase(), dnsIP),
-        'info',
-        { i18nKey: 'logDnsUsed', i18nParams: [config.selectedDns.toUpperCase(), dnsIP] },
-      );
+      addLog(t.logDnsUsed(config.selectedDns.toUpperCase(), dnsIP), "info", {
+        i18nKey: "logDnsUsed",
+        i18nParams: [config.selectedDns.toUpperCase(), dnsIP],
+      });
     } else {
-      addLog(t.logDnsDefault, 'info', { i18nKey: 'logDnsDefault' });
+      addLog(t.logDnsDefault, "info", { i18nKey: "logDnsDefault" });
     }
-    
+
     isRetrying.current = false;
 
     try {
       // Zaman aşımı: güçlü modda biraz daha toleranslı, hızlı modda daha agresif
-      const TIMEOUT_MS = configRef.current.dpiMethod === '1' ? 3500 : 2500;
+      const TIMEOUT_MS = configRef.current.dpiMethod === "1" ? 3500 : 2500;
 
       const listenAddr = `${bindAddr}:${port}`;
 
       const args = [
-        '--clean', // Ev / config dosyasını yok say; sadece bizim flag'ler geçerli (timeout vs. doğru kalsın)
-        '--listen-addr', listenAddr,
-        '--timeout', TIMEOUT_MS.toString(),
-        '--silent',
-        '--log-level', 'info',
+        "--clean", // Ev / config dosyasını yok say; sadece bizim flag'ler geçerli (timeout vs. doğru kalsın)
+        "--listen-addr",
+        listenAddr,
+        "--timeout",
+        TIMEOUT_MS.toString(),
+        "--silent",
+        "--log-level",
+        "info",
       ];
 
       // DNS ayarı: sistem veya seçili sağlayıcı (geçersiz key → sistem)
-      if (config.selectedDns === 'system' || !dnsIP) {
-        args.push('--dns-mode', 'system');
+      if (config.selectedDns === "system" || !dnsIP) {
+        args.push("--dns-mode", "system");
       } else {
-        args.push('--dns-addr', `${dnsIP}:53`, '--dns-mode', 'udp');
+        args.push("--dns-addr", `${dnsIP}:53`, "--dns-mode", "udp");
       }
 
       // Güçlü / Hızlı mod için HTTPS profili (wpcap gerektirmeyecek şekilde: fake-count kullanmıyoruz)
-      const isStrongMode = (configRef.current.dpiMethod || '1') === '1';
+      const isStrongMode = (configRef.current.dpiMethod || "1") === "1";
       if (isStrongMode) {
-        const chunkSize = [4, 8, 16].includes(Number(configRef.current.httpsChunkSize))
+        const chunkSize = [4, 8, 16].includes(
+          Number(configRef.current.httpsChunkSize),
+        )
           ? String(configRef.current.httpsChunkSize)
-          : '8';
+          : "8";
         args.push(
-          '--https-split-mode', 'chunk',
-          '--https-chunk-size', chunkSize,
-          '--https-disorder',
+          "--https-split-mode",
+          "chunk",
+          "--https-chunk-size",
+          chunkSize,
+          "--https-disorder",
         );
       } else {
         // En hafif profil, en düşük gecikme
-        args.push('--https-split-mode', 'sni');
+        args.push("--https-split-mode", "sni");
       }
 
-      const command = Command.sidecar('binaries/bypax-proxy', args);
+      const command = Command.sidecar("binaries/bypax-proxy", args);
 
-      
       let connectionConfirmed = false;
       let isReady = false;
 
       // Optimized regex pattern - compiled once (regex literal / karışmasın diye string + new RegExp)
       const SKIP_PATTERN = new RegExp(
-        '\\[(?:PROXY|DNS|HTTPS|CACHE|app)]|method:\\s*CONNECT|cache (?:miss|hit)|resolving|routing|resolution took|new conn|client sent hello|shouldExploit|useSystemDns|fragmentation|conn established|writing chunked|caching \\d+ records|[a-f0-9]{8}-[a-f0-9]{8}|d88|Y88|88P|level=|ctrl \\+ c|listen_addr|dns_addr|github\\.com|spoofdpi|connection timeout',
-        'i'
+        "\\[(?:PROXY|DNS|HTTPS|CACHE|app)]|method:\\s*CONNECT|cache (?:miss|hit)|resolving|routing|resolution took|new conn|client sent hello|shouldExploit|useSystemDns|fragmentation|conn established|writing chunked|caching \\d+ records|[a-f0-9]{8}-[a-f0-9]{8}|d88|Y88|88P|level=|ctrl \\+ c|listen_addr|dns_addr|github\\.com|spoofdpi|connection timeout",
+        "i",
       );
       // Bağlantı kesilirken / yeniden bağlanırken SpoofDPI tüm tünelleri kapatır; her biri "error handling request" / "wsarecv ... aborted" WRN basar - kullanıcı loguna taşıma
-      const isTunnelShutdownNoise = (l) => (/\[pxy\].*error handling request|unsuccessful tunnel|wsarecv|aborted by the software in your host machine/i.test(l));
+      const isTunnelShutdownNoise = (l) =>
+        /\[pxy\].*error handling request|unsuccessful tunnel|wsarecv|aborted by the software in your host machine/i.test(
+          l,
+        );
 
       const handleOutput = async (line, type) => {
         const trimmedLine = line.trim();
         const lowerLine = line.toLowerCase();
-        
+
         if (trimmedLine.length === 0) return;
         if (/^(DBG|INF|WRN|ERR)\s+\d{4}-/.test(trimmedLine)) return;
-        if (line.includes('888')) return;
+        if (line.includes("888")) return;
         if (isTunnelShutdownNoise(line)) return;
 
         if (SKIP_PATTERN.test(line)) return;
 
         // Optimized alpha check
-        const alphaCount = line.replace(/[^a-zA-ZğüşıöçĞÜŞİÖÇ]/g, '').length;
+        const alphaCount = line.replace(/[^a-zA-ZğüşıöçĞÜŞİÖÇ]/g, "").length;
         if (alphaCount < 5 && trimmedLine.length > 3) return;
-        
+
         let friendlyKey = null;
         let friendlyParams = [];
 
         const isWpcapError =
           lowerLine.includes("couldn't load wpcap.dll") ||
-          lowerLine.includes('error starting network detector');
+          lowerLine.includes("error starting network detector");
 
         if (isWpcapError) {
           fatalErrorRef.current = true;
-          friendlyKey = 'logWpcapMissing';
+          friendlyKey = "logWpcapMissing";
         }
 
         // Port hatası (sadece gerçekten "in use" hatalarında tetikle)
         const isPortInUse =
-          (lowerLine.includes('bind') || lowerLine.includes('yuva adresi')) &&
-          (lowerLine.includes('already in use') || lowerLine.includes('only one usage'));
-        
-        if (lowerLine.includes('listening on') || lowerLine.includes('created a listener')) {
+          (lowerLine.includes("bind") || lowerLine.includes("yuva adresi")) &&
+          (lowerLine.includes("already in use") ||
+            lowerLine.includes("only one usage"));
+
+        if (
+          lowerLine.includes("listening on") ||
+          lowerLine.includes("created a listener")
+        ) {
           isReady = true;
-          friendlyKey = 'logSpoofReady';
+          friendlyKey = "logSpoofReady";
           friendlyParams = [port];
-        } else if (lowerLine.includes('server started')) {
+        } else if (lowerLine.includes("server started")) {
           isReady = true;
-          friendlyKey = 'logEngineActive';
+          friendlyKey = "logEngineActive";
         } else if (isPortInUse) {
-          friendlyKey = 'logPortBusy';
+          friendlyKey = "logPortBusy";
           friendlyParams = [port];
-        } else if (lowerLine.includes('initializing')) {
-          friendlyKey = 'logInitializing';
+        } else if (lowerLine.includes("initializing")) {
+          friendlyKey = "logInitializing";
         }
-        
+
         if (friendlyKey) {
           const msg = resolveI18nMessage(friendlyKey, friendlyParams);
-          addLog(msg, type === 'warn' ? 'warn' : 'error', {
+          addLog(msg, type === "warn" ? "warn" : "error", {
             i18nKey: friendlyKey,
             i18nParams: friendlyParams,
           });
         } else {
           // Friendly mapping yoksa, ham SpoofDPI çıktısını da göster ki hata detayları kaybolmasın
-          addLog(trimmedLine, type === 'warn' ? 'warn' : 'info');
+          addLog(trimmedLine, type === "warn" ? "warn" : "info");
         }
-        
+
         // Wait for port to be actually ready (listener log geldikten sonra kısa bekle; SpoofDPI 1.2.1 bazen geç bind ediyor)
         if (!connectionConfirmed && isReady) {
           connectionConfirmed = true;
-          await new Promise(r => setTimeout(r, 400));
+          await new Promise((r) => setTimeout(r, 400));
           const portReady = await waitForPort(port);
           if (!portReady) {
-            addLog(t.logPortRetryOpen(port), 'warn', {
-              i18nKey: 'logPortRetryOpen',
+            addLog(t.logPortRetryOpen(port), "warn", {
+              i18nKey: "logPortRetryOpen",
               i18nParams: [port],
             });
             // Sonraki portu dene: process'i kapat, Rust yeni port verecek, yeniden başlat
@@ -554,35 +622,43 @@ function App() {
             }
             return;
           }
-          
+
           setCurrentPort(port);
           try {
-            await invoke('set_system_proxy', { port });
-            addLog(t.logProxySet(port), 'success', { i18nKey: 'logProxySet', i18nParams: [port] });
+            await invoke("set_system_proxy", { port });
+            addLog(t.logProxySet(port), "success", {
+              i18nKey: "logProxySet",
+              i18nParams: [port],
+            });
           } catch (err) {
-            addLog(t.logProxySetError(err), 'error', {
-              i18nKey: 'logProxySetError',
+            addLog(t.logProxySetError(err), "error", {
+              i18nKey: "logProxySetError",
               i18nParams: [err],
             });
             return;
           }
-          
+
           // ✅ Başarılı bağlantı - retry mekanizmasını sıfırla
           retryCount.current = 0;
           userIntentDisconnect.current = false;
-          
+
           setIsConnected(true);
           setIsProcessing(false);
-          addLog(t.logConnected, 'success', { i18nKey: 'logConnected' });
-          notifyUser('Bypax', t.logConnected, 'connect');
-          updateTrayTooltip('connected');
+          addLog(t.logConnected, "success", { i18nKey: "logConnected" });
+          notifyUser("Bypax", t.logConnected, "connect");
+          updateTrayTooltip("connected");
           if (configRef.current.lanSharing) {
             (async () => {
               try {
-                await invoke('start_pac_server', { proxyPort: port });
-                addLog(t.logPacStarted, 'success', { i18nKey: 'logPacStarted' });
+                await invoke("start_pac_server", { proxyPort: port });
+                addLog(t.logPacStarted, "success", {
+                  i18nKey: "logPacStarted",
+                });
               } catch (e) {
-                addLog(t.logPacStartError(e), 'warn', { i18nKey: 'logPacStartError', i18nParams: [e] });
+                addLog(t.logPacStartError(e), "warn", {
+                  i18nKey: "logPacStartError",
+                  i18nParams: [e],
+                });
               }
             })();
           }
@@ -590,136 +666,159 @@ function App() {
 
         const isPortError = isPortInUse;
 
-        if (!fatalErrorRef.current &&
-            isPortError &&
-            (lowerLine.includes('error') || lowerLine.includes('fail') || lowerLine.includes('ftl')) &&
-            !isRetrying.current) {
+        if (
+          !fatalErrorRef.current &&
+          isPortError &&
+          (lowerLine.includes("error") ||
+            lowerLine.includes("fail") ||
+            lowerLine.includes("ftl")) &&
+          !isRetrying.current
+        ) {
           isRetrying.current = true;
-          
+
           if (childProcess.current) {
-             childProcess.current.kill().catch(() => {});
-             childProcess.current = null;
+            childProcess.current.kill().catch(() => {});
+            childProcess.current = null;
           }
-          
+
           setTimeout(() => {
             // Smart Retry: Port increment yerine Rust'ın yeni port bulmasına güveniyoruz
             // Ama yine de recursion için count artırıyoruz
-            startEngine(0, portRetryCount + 1); 
-          }, 1000); 
+            startEngine(0, portRetryCount + 1);
+          }, 1000);
         }
       };
 
-      command.on('close', data => {
+      command.on("close", (data) => {
         if (!isRetrying.current) {
           const isUnexpectedClose = data.code !== 0 && data.code !== null;
-          
+
           // ✅ ÖNCE user intent kontrol et
           if (userIntentDisconnect.current) {
             // Kullanıcı kasıtlı kapattı - normal mesaj göster
-            addLog(t.logEngineStoppedGrace, 'info', { i18nKey: 'logEngineStoppedGrace' });
+            addLog(t.logEngineStoppedGrace, "info", {
+              i18nKey: "logEngineStoppedGrace",
+            });
             setIsConnected(false);
             setIsProcessing(false);
             childProcess.current = null;
             (async () => {
               try {
-                await invoke('stop_pac_server');
+                await invoke("stop_pac_server");
                 await clearProxy(true);
               } catch (err) {
                 console.error(err);
               }
             })();
-            
+
             // Reset flags
             retryCount.current = 0;
             userIntentDisconnect.current = false;
             return; // Erken çık, retry yapma
           }
-          
+
           // Kullanıcı kasıtlı kapatmadı - beklenmedik kapanma
           if (isUnexpectedClose) {
             const warnMsg = `⚠️ ${t.logEngineStopped(data.code)}`;
-            addLog(warnMsg, 'warn', { i18nKey: 'logEngineStopped', i18nParams: [data.code] });
+            addLog(warnMsg, "warn", {
+              i18nKey: "logEngineStopped",
+              i18nParams: [data.code],
+            });
           } else {
-            addLog(t.logEngineStoppedGrace, 'info', { i18nKey: 'logEngineStoppedGrace' });
+            addLog(t.logEngineStoppedGrace, "info", {
+              i18nKey: "logEngineStoppedGrace",
+            });
           }
-          
+
           // ✅ childProcess null yapılmadan önce backup al
           const hadActiveProcess = childProcess.current !== null;
-          
+
           setIsConnected(false);
           setIsProcessing(false);
           childProcess.current = null;
           (async () => {
             try {
-              await invoke('stop_pac_server');
+              await invoke("stop_pac_server");
               await clearProxy(true);
             } catch (err) {
               console.error(err);
             }
           })();
-          updateTrayTooltip('disconnected'); // ✅ Bağlantı koptu (geçici)
-          
+          updateTrayTooltip("disconnected"); // ✅ Bağlantı koptu (geçici)
+
           // ✅ Otomatik yeniden bağlanma kontrol
-          const autoReconnectEnabled = configRef.current.autoReconnect !== false; // undefined veya true ise açık
-          
-          const shouldReconnect = 
-            autoReconnectEnabled &&               // Ayarda açık mı?
-            !userIntentDisconnect.current &&      // Kullanıcı kasıtlı kapatmadı mı?
-            !fatalErrorRef.current &&             // Ölümcül hata yok mu? (örn. wpcap.dll eksik)
-            hadActiveProcess;                     // Process çalışıyor muydu?
-          
+          const autoReconnectEnabled =
+            configRef.current.autoReconnect !== false; // undefined veya true ise açık
+
+          const shouldReconnect =
+            autoReconnectEnabled && // Ayarda açık mı?
+            !userIntentDisconnect.current && // Kullanıcı kasıtlı kapatmadı mı?
+            !fatalErrorRef.current && // Ölümcül hata yok mu? (örn. wpcap.dll eksik)
+            hadActiveProcess; // Process çalışıyor muydu?
+
           if (shouldReconnect) {
-            addLog(`🔄 ${t.logAutoReconnect}`, 'info', { i18nKey: 'logAutoReconnect' });
-            notifyUser('BypaxDPI', t.logAutoReconnect, 'disconnect');
+            addLog(`🔄 ${t.logAutoReconnect}`, "info", {
+              i18nKey: "logAutoReconnect",
+            });
+            notifyUser("BypaxDPI", t.logAutoReconnect, "disconnect");
             setIsProcessing(true);
             attemptReconnect();
           }
         }
       });
 
-      command.stderr.on('data', line => handleOutput(line, 'warn'));
-      command.stdout.on('data', line => handleOutput(line, 'info'));
-      
+      command.stderr.on("data", (line) => handleOutput(line, "warn"));
+      command.stdout.on("data", (line) => handleOutput(line, "info"));
+
       const child = await command.spawn();
       childProcess.current = child;
 
       // Failsafe timeout
       setTimeout(async () => {
-        if (childProcess.current && !connectionConfirmed && !isRetrying.current) {
-             connectionConfirmed = true;
-             setCurrentPort(port);
+        if (
+          childProcess.current &&
+          !connectionConfirmed &&
+          !isRetrying.current
+        ) {
+          connectionConfirmed = true;
+          setCurrentPort(port);
 
-             try {
-                await invoke('set_system_proxy', { port: port });
-             } catch (err) {
-                addLog(t.logProxySetError(err), 'error', {
-                  i18nKey: 'logProxySetError',
-                  i18nParams: [err],
-                });
-             }
+          try {
+            await invoke("set_system_proxy", { port: port });
+          } catch (err) {
+            addLog(t.logProxySetError(err), "error", {
+              i18nKey: "logProxySetError",
+              i18nParams: [err],
+            });
+          }
 
-             // ✅ Başarılı bağlantı - retry mekanizmasını sıfırla
-             retryCount.current = 0;
-             userIntentDisconnect.current = false;
+          // ✅ Başarılı bağlantı - retry mekanizmasını sıfırla
+          retryCount.current = 0;
+          userIntentDisconnect.current = false;
 
-             setIsConnected(true);
-             setIsProcessing(false);
-             addLog(t.logConnected, 'info', { i18nKey: 'logConnected' });
-             notifyUser('BypaxDPI', t.logConnected, 'connect');
-             updateTrayTooltip('connected'); // ✅ Auto-connect başarılı
-             if (configRef.current.lanSharing) {
-               try {
-                 await invoke('start_pac_server', { proxyPort: port });
-                 addLog(t.logPacStarted, 'success', { i18nKey: 'logPacStarted' });
-               } catch (e) {
-                 addLog(t.logPacStartError(e), 'warn', { i18nKey: 'logPacStartError', i18nParams: [e] });
-               }
-             }
+          setIsConnected(true);
+          setIsProcessing(false);
+          addLog(t.logConnected, "info", { i18nKey: "logConnected" });
+          notifyUser("BypaxDPI", t.logConnected, "connect");
+          updateTrayTooltip("connected"); // ✅ Auto-connect başarılı
+          if (configRef.current.lanSharing) {
+            try {
+              await invoke("start_pac_server", { proxyPort: port });
+              addLog(t.logPacStarted, "success", { i18nKey: "logPacStarted" });
+            } catch (e) {
+              addLog(t.logPacStartError(e), "warn", {
+                i18nKey: "logPacStartError",
+                i18nParams: [e],
+              });
+            }
+          }
         }
       }, 2000); // (Fail-safe timeout)
-
     } catch (e) {
-      addLog(t.logEngineStartError(e), 'error', { i18nKey: 'logEngineStartError', i18nParams: [e] });
+      addLog(t.logEngineStartError(e), "error", {
+        i18nKey: "logEngineStartError",
+        i18nParams: [e],
+      });
       setIsConnected(false);
       setIsProcessing(false);
       try {
@@ -735,52 +834,55 @@ function App() {
 
     if (isConnected) {
       if (configRef.current.requireConfirmation !== false) {
-         const confirmed = await customConfirm(
-             t.confirmDisconnectDesc || 'Güvenli bağlantınızı sonlandırmak istediğinize emin misiniz?', 
-             { title: t.confirmDisconnectTitle || 'Bağlantıyı Kes' }
-         );
-         if (!confirmed) return;
+        const confirmed = await customConfirm(
+          t.confirmDisconnectDesc ||
+            "Güvenli bağlantınızı sonlandırmak istediğinize emin misiniz?",
+          { title: t.confirmDisconnectTitle || "Bağlantıyı Kes" },
+        );
+        if (!confirmed) return;
       }
 
       // ✅ Kullanıcı kasıtlı olarak bağlantıyı kesiyor
       userIntentDisconnect.current = true;
-      
+
       // Retry timer varsa iptal et
       if (retryTimer.current) {
         clearTimeout(retryTimer.current);
         retryTimer.current = null;
       }
-      
+
       setIsProcessing(true);
       if (childProcess.current) {
         try {
-          addLog(t.logDisconnected, 'warn', { i18nKey: 'logDisconnected' });
-          try { await invoke('stop_pac_server'); } catch (_) {}
+          addLog(t.logDisconnected, "warn", { i18nKey: "logDisconnected" });
+          try {
+            await invoke("stop_pac_server");
+          } catch (_) {}
           await childProcess.current.kill();
         } catch (e) {
-          addLog(t.logServiceStopError(e), 'error', {
-            i18nKey: 'logServiceStopError',
+          addLog(t.logServiceStopError(e), "error", {
+            i18nKey: "logServiceStopError",
             i18nParams: [e],
           });
         }
         childProcess.current = null;
       }
       setIsConnected(false);
-      await clearProxy(); 
-      addLog(t.logServiceStopped, 'success', { i18nKey: 'logServiceStopped' });
+      await clearProxy();
+      addLog(t.logServiceStopped, "success", { i18nKey: "logServiceStopped" });
 
       // Eğer kapatma (shutdown) sırasındaysa, bildirim yollama.
       if (!isAppClosing) {
-         notifyUser('BypaxDPI', t.notifDisconnectManual, 'disconnect_manual'); // Özel notification event tipi
+        notifyUser("BypaxDPI", t.notifDisconnectManual, "disconnect_manual"); // Özel notification event tipi
       }
-      
+
       setIsProcessing(false);
-      updateTrayTooltip('disconnected'); // ✅ Manuel durdurma
+      updateTrayTooltip("disconnected"); // ✅ Manuel durdurma
     } else {
       // ✅ Kullanıcı manuel bağlanıyor - retry counter sıfırla
       retryCount.current = 0;
       userIntentDisconnect.current = false;
-      
+
       setIsProcessing(true);
       startEngine(8080);
     }
@@ -788,7 +890,7 @@ function App() {
 
   useEffect(() => {
     // logsEndRef
-    logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    logsEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [logs]);
 
   // isAppClosing state - uygulamayı kapatırken/tepsiye alırken sahte disconnect atlaması
@@ -807,11 +909,11 @@ function App() {
 
     if (!isConnected) return;
 
-    addLog(t.logLanRestart, 'warn', { i18nKey: 'logLanRestart' });
+    addLog(t.logLanRestart, "warn", { i18nKey: "logLanRestart" });
 
     // Kullanıcıya süreç boyunca "yeniden bağlanıyor" hissi ver
     setIsProcessing(true);
-    updateTrayTooltip('connecting');
+    updateTrayTooltip("connecting");
 
     // Manuel restart: auto-reconnect karışmasın
     userIntentDisconnect.current = true;
@@ -825,7 +927,9 @@ function App() {
       childProcess.current = null;
     }
     (async () => {
-      try { await invoke('stop_pac_server'); } catch (_) {}
+      try {
+        await invoke("stop_pac_server");
+      } catch (_) {}
     })();
     setIsConnected(false);
 
@@ -839,16 +943,20 @@ function App() {
   // ✅ DPI modu veya chunk size değişince bağlı bağlantıyı yeniden başlat
   useEffect(() => {
     const chunkSize = config.httpsChunkSize ?? 8;
-    if (prevDpiMethodRef.current === config.dpiMethod && prevChunkSizeRef.current === chunkSize) return;
+    if (
+      prevDpiMethodRef.current === config.dpiMethod &&
+      prevChunkSizeRef.current === chunkSize
+    )
+      return;
     prevDpiMethodRef.current = config.dpiMethod;
     prevChunkSizeRef.current = chunkSize;
 
     if (!isConnected) return;
 
-    addLog(t.logDpiRestart, 'warn', { i18nKey: 'logDpiRestart' });
+    addLog(t.logDpiRestart, "warn", { i18nKey: "logDpiRestart" });
 
     setIsProcessing(true);
-    updateTrayTooltip('connecting');
+    updateTrayTooltip("connecting");
 
     userIntentDisconnect.current = true;
     if (retryTimer.current) {
@@ -874,12 +982,12 @@ function App() {
     (async () => {
       try {
         await clearProxy(true);
-        updateTrayTooltip('disconnected');
+        updateTrayTooltip("disconnected");
       } catch (e) {
-        console.error('Initial proxy cleanup failed:', e);
+        console.error("Initial proxy cleanup failed:", e);
       }
     })();
-    
+
     // Listen for window close event
     const initListener = async () => {
       const win = getCurrentWindow();
@@ -890,11 +998,11 @@ function App() {
         if (isExiting.current) {
           return;
         }
-        
+
         setIsAppClosing(true);
 
         if (configRef.current.minimizeToTray && !trayQuitRef.current) {
-          setIsAppClosing(false); 
+          setIsAppClosing(false);
           try {
             await win.hide();
           } catch (e) {
@@ -907,20 +1015,21 @@ function App() {
           getCurrentWindow().show();
           getCurrentWindow().setFocus();
           const confirmed = await customConfirm(
-              t.confirmExitDesc || 'Bypax motorunu durdurup çıkmak istediğinize emin misiniz?', 
-              { title: t.confirmExitTitle || 'Çıkış' }
+            t.confirmExitDesc ||
+              "Bypax motorunu durdurup çıkmak istediğinize emin misiniz?",
+            { title: t.confirmExitTitle || "Çıkış" },
           );
           if (!confirmed) {
-             setIsAppClosing(false);
-             if (trayQuitRef.current) {
-               trayQuitRef.current = false;
-             }
-             return;
+            setIsAppClosing(false);
+            if (trayQuitRef.current) {
+              trayQuitRef.current = false;
+            }
+            return;
           }
         }
 
         isExiting.current = true;
-        userIntentDisconnect.current = true; 
+        userIntentDisconnect.current = true;
 
         // ✅ Timer'ı temizle
         if (retryTimer.current) {
@@ -930,60 +1039,62 @@ function App() {
 
         try {
           if (childProcess.current) {
-            await childProcess.current.kill().catch(() => {}); 
+            await childProcess.current.kill().catch(() => {});
           }
           await clearProxy(true);
         } catch (e) {
-          console.error('Cleanup failed:', e);
+          console.error("Cleanup failed:", e);
         }
         try {
-          await invoke('quit_app');
+          await invoke("quit_app");
         } catch (e) {
-          console.error('Quit app failed:', e);
+          console.error("Quit app failed:", e);
           await getCurrentWindow().destroy();
         }
       });
-      const unlistenTrayQuit = await win.listen('tray_quit', () => {
+      const unlistenTrayQuit = await win.listen("tray_quit", () => {
         trayQuitRef.current = true;
       });
       return { unlisten, unlistenTrayQuit };
     };
 
     let unlistenFn;
-    initListener().then(fn => (unlistenFn = fn));
+    initListener().then((fn) => (unlistenFn = fn));
 
     return () => {
       if (unlistenFn) {
         if (unlistenFn.unlisten) unlistenFn.unlisten();
         if (unlistenFn.unlistenTrayQuit) unlistenFn.unlistenTrayQuit();
       }
-      
+
       // ✅ Retry timer'ı temizle
       if (retryTimer.current) {
         clearTimeout(retryTimer.current);
         retryTimer.current = null;
       }
-      
+
       // Cleanup on unmount
       const cleanup = async () => {
         setIsAppClosing(true);
         userIntentDisconnect.current = true; // prevent false notifications on reload/close
-        try { await invoke('stop_pac_server'); } catch (_) {}
+        try {
+          await invoke("stop_pac_server");
+        } catch (_) {}
         if (childProcess.current) {
           try {
             await childProcess.current.kill();
             childProcess.current = null;
           } catch (e) {
-            console.error('Process kill failed:', e);
+            console.error("Process kill failed:", e);
           }
         }
         try {
-          await invoke('clear_system_proxy');
+          await invoke("clear_system_proxy");
         } catch (e) {
-          console.error('Proxy cleanup failed:', e);
+          console.error("Proxy cleanup failed:", e);
         }
       };
-      
+
       cleanup();
     };
   }, []);
@@ -994,8 +1105,9 @@ function App() {
 
     if (configRef.current.requireConfirmation !== false) {
       const confirmed = await customConfirm(
-        t.confirmExitDesc || 'Bypax motorunu durdurup çıkmak istediğinize emin misiniz?',
-        { title: t.confirmExitTitle || 'Çıkış' }
+        t.confirmExitDesc ||
+          "Bypax motorunu durdurup çıkmak istediğinize emin misiniz?",
+        { title: t.confirmExitTitle || "Çıkış" },
       );
       if (!confirmed) return;
     }
@@ -1004,7 +1116,7 @@ function App() {
     isExiting.current = true;
     setIsAppClosing(true);
     userIntentDisconnect.current = true; // Reconnect engelle
-    addLog(t.logShutdownStarting, 'warn', { i18nKey: 'logShutdownStarting' });
+    addLog(t.logShutdownStarting, "warn", { i18nKey: "logShutdownStarting" });
 
     // ✅ Timer'ı temizle
     if (retryTimer.current) {
@@ -1016,28 +1128,30 @@ function App() {
       if (childProcess.current) {
         await childProcess.current.kill().catch(() => {});
         childProcess.current = null;
-        addLog(t.logProcessStopped, 'success', { i18nKey: 'logProcessStopped' });
+        addLog(t.logProcessStopped, "success", {
+          i18nKey: "logProcessStopped",
+        });
       }
-      try { await invoke('stop_pac_server'); } catch (_) {}
+      try {
+        await invoke("stop_pac_server");
+      } catch (_) {}
       await clearProxy(true);
     } catch (e) {
-      console.error('Cleanup failed:', e);
+      console.error("Cleanup failed:", e);
     }
     try {
-      await invoke('quit_app');
+      await invoke("quit_app");
     } catch (e) {
-      console.error('Quit app failed:', e);
+      console.error("Quit app failed:", e);
       await getCurrentWindow().destroy();
     }
   };
-
- 
 
   // Auto-connect on mount
   useEffect(() => {
     const shouldAutoConnect = configRef.current.autoConnect;
     let isMounted = true;
-    
+
     if (shouldAutoConnect && !childProcess.current) {
       const timeoutId = setTimeout(() => {
         if (!childProcess.current && isMounted) {
@@ -1045,7 +1159,7 @@ function App() {
           startEngine(8080);
         }
       }, 300); // ✅ 1000ms -> 300ms (Uygulama açılışında daha hızlı bağlan)
-      
+
       return () => {
         isMounted = false;
         clearTimeout(timeoutId);
@@ -1059,51 +1173,54 @@ function App() {
       // Hedef tasarım boyutları (Tauri config ile uyumlu)
       const DESIGN_WIDTH = 380;
       const DESIGN_HEIGHT = 700;
-      
+
       const currentWidth = window.innerWidth;
       const currentHeight = window.innerHeight;
-      
+
       // X ve Y eksenlerindeki sığma oranlarını hesapla
       const scaleX = currentWidth / DESIGN_WIDTH;
       const scaleY = currentHeight / DESIGN_HEIGHT;
-      
+
       // En kısıtlı alana göre scale belirle (Aspect Ratio koruyarak sığdır)
       // %98'in altındaysa scale et (titremeyi önlemek için tolerans)
       const scale = Math.min(scaleX, scaleY);
-      
+
       if (scale < 0.99) {
         document.body.style.zoom = `${scale}`;
       } else {
-        document.body.style.zoom = '1';
+        document.body.style.zoom = "1";
       }
     };
 
-    window.addEventListener('resize', handleResize);
-    
+    window.addEventListener("resize", handleResize);
+
     // Initial checks
     handleResize();
     setTimeout(handleResize, 100);
     setTimeout(handleResize, 500); // Yüklenme gecikmeleri için
 
-    return () => window.removeEventListener('resize', handleResize);
+    return () => window.removeEventListener("resize", handleResize);
   }, []);
 
   // Native App Experience: Disable browser-like behaviors
   useEffect(() => {
     // Disable right-click
     const handleContextMenu = (e) => e.preventDefault();
-    
+
     // Disable refresh and dev shortcuts
     const handleKeyDown = (e) => {
       const isCmdOrCtrl = e.metaKey || e.ctrlKey;
-      
+
       // Block F5, F11 (Fullscreen), F12
-      if (['F5', 'F11', 'F12'].includes(e.key)) {
+      if (["F5", "F11", "F12"].includes(e.key)) {
         e.preventDefault();
       }
 
       // Block Ctrl+R, Ctrl+Shift+R, Ctrl+Shift+I, Ctrl+P, Ctrl+S, Ctrl+U (View Source)
-      if (isCmdOrCtrl && ['r', 'R', 'i', 'I', 'p', 'P', 's', 'S', 'u', 'U'].includes(e.key)) {
+      if (
+        isCmdOrCtrl &&
+        ["r", "R", "i", "I", "p", "P", "s", "S", "u", "U"].includes(e.key)
+      ) {
         e.preventDefault();
       }
     };
@@ -1112,18 +1229,18 @@ function App() {
     // and prevent dragging of images/links
     const handleDragStart = (e) => e.preventDefault();
 
-    document.addEventListener('contextmenu', handleContextMenu);
-    document.addEventListener('keydown', handleKeyDown);
-    document.addEventListener('dragstart', handleDragStart);
+    document.addEventListener("contextmenu", handleContextMenu);
+    document.addEventListener("keydown", handleKeyDown);
+    document.addEventListener("dragstart", handleDragStart);
 
     // CSS level text selection prevention (best for all browsers)
-    document.body.style.userSelect = 'none';
-    document.body.style.webkitUserSelect = 'none';
+    document.body.style.userSelect = "none";
+    document.body.style.webkitUserSelect = "none";
 
     return () => {
-      document.removeEventListener('contextmenu', handleContextMenu);
-      document.removeEventListener('keydown', handleKeyDown);
-      document.removeEventListener('dragstart', handleDragStart);
+      document.removeEventListener("contextmenu", handleContextMenu);
+      document.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener("dragstart", handleDragStart);
     };
   }, []);
 
@@ -1132,147 +1249,206 @@ function App() {
     <div className="app-container fade-in">
       <AnimatePresence>
         {!isAdmin && !import.meta.env.DEV && (
-          <motion.div 
+          <motion.div
             className="v2-settings-overlay"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            style={{ 
-              zIndex: 99999, 
-              background: '#09090b', 
-              position: 'fixed',
+            style={{
+              zIndex: 99999,
+              background: "#09090b",
+              position: "fixed",
               top: 0,
               left: 0,
               right: 0,
               bottom: 0,
-              display: 'flex', 
-              flexDirection: 'column', 
-              alignItems: 'center', 
-              justifyContent: 'center',
-              textAlign: 'center',
-              padding: '2rem'
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              textAlign: "center",
+              padding: "2rem",
             }}
           >
             {/* Background Glow */}
-            <div style={{
-                position: 'absolute',
-                top: '40%',
-                left: '50%',
-                transform: 'translate(-50%, -50%)',
-                width: '100%',
-                height: '400px',
-                background: 'radial-gradient(circle, rgba(239, 68, 68, 0.08) 0%, rgba(0,0,0,0) 60%)',
-                pointerEvents: 'none',
-                zIndex: 0
-            }} />
+            <div
+              style={{
+                position: "absolute",
+                top: "40%",
+                left: "50%",
+                transform: "translate(-50%, -50%)",
+                width: "100%",
+                height: "400px",
+                background:
+                  "radial-gradient(circle, rgba(239, 68, 68, 0.08) 0%, rgba(0,0,0,0) 60%)",
+                pointerEvents: "none",
+                zIndex: 0,
+              }}
+            />
 
-            <div style={{ zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', maxWidth: '420px' }}>
-                <img 
-                  src="/bypax-logo.png" 
-                  alt="BypaxDPI" 
-                  style={{ 
-                    width: '80px', 
-                    height: '80px', 
-                    marginBottom: '1.5rem',
-                    borderRadius: '12px',
-                    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)'
-                  }} 
-                />
+            <div
+              style={{
+                zIndex: 1,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                maxWidth: "420px",
+              }}
+            >
+              <img
+                src="/bypax-logo.png"
+                alt="BypaxDPI"
+                style={{
+                  width: "80px",
+                  height: "80px",
+                  marginBottom: "1.5rem",
+                  borderRadius: "12px",
+                  boxShadow: "0 8px 32px rgba(0, 0, 0, 0.3)",
+                }}
+              />
 
-                <h1 style={{ fontSize: '1.5rem', marginBottom: '0.75rem', color: '#fff', fontWeight: '700' }}>
-                    {t.adminTitle}
-                </h1>
-                
-                <p style={{ color: '#a1a1aa', marginBottom: '1.5rem', lineHeight: '1.6', fontSize: '0.95rem' }}>
-                    {t.adminDesc}
-                </p>
+              <h1
+                style={{
+                  fontSize: "1.5rem",
+                  marginBottom: "0.75rem",
+                  color: "#fff",
+                  fontWeight: "700",
+                }}
+              >
+                {t.adminTitle}
+              </h1>
 
-                <div style={{
-                  background: 'rgba(255, 255, 255, 0.03)',
-                  border: '1px solid rgba(255, 255, 255, 0.06)',
-                  borderRadius: '12px',
-                  padding: '1rem',
-                  marginBottom: '2rem',
-                  textAlign: 'left',
-                  width: '100%'
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', textAlign: 'left' }}>
-                    <div style={{ 
-                      background: 'rgba(239, 68, 68, 0.15)', 
-                      padding: '10px', 
-                      borderRadius: '8px',
-                      color: '#ef4444',
+              <p
+                style={{
+                  color: "#a1a1aa",
+                  marginBottom: "1.5rem",
+                  lineHeight: "1.6",
+                  fontSize: "0.95rem",
+                }}
+              >
+                {t.adminDesc}
+              </p>
+
+              <div
+                style={{
+                  background: "rgba(255, 255, 255, 0.03)",
+                  border: "1px solid rgba(255, 255, 255, 0.06)",
+                  borderRadius: "12px",
+                  padding: "1rem",
+                  marginBottom: "2rem",
+                  textAlign: "left",
+                  width: "100%",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: "12px",
+                    textAlign: "left",
+                  }}
+                >
+                  <div
+                    style={{
+                      background: "rgba(239, 68, 68, 0.15)",
+                      padding: "10px",
+                      borderRadius: "8px",
+                      color: "#ef4444",
                       flexShrink: 0,
-                      position: 'relative',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}>
-                      <Shield size={22} />
-                    </div>
-                    <div>
-                      <div 
-                        style={{ color: '#d4d4d8', fontSize: '0.85rem', lineHeight: '1.4' }}
-                        dangerouslySetInnerHTML={{ __html: t.adminStep }}
-                      />
-                    </div>
+                      position: "relative",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <Shield size={22} />
+                  </div>
+                  <div>
+                    <div
+                      style={{
+                        color: "#d4d4d8",
+                        fontSize: "0.85rem",
+                        lineHeight: "1.4",
+                      }}
+                      dangerouslySetInnerHTML={{ __html: t.adminStep }}
+                    />
                   </div>
                 </div>
+              </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%' }}>
-                  <button 
-                    style={{ 
-                      background: '#3b82f6', 
-                      color: 'white', 
-                      padding: '0.8rem 2rem', 
-                      border: 'none', 
-                      borderRadius: '10px', 
-                      fontSize: '0.95rem', 
-                      fontWeight: '600', 
-                      cursor: 'pointer',
-                      width: '100%',
-                      transition: 'all 0.2s ease',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '8px',
-                      boxShadow: '0 4px 14px rgba(59, 130, 246, 0.3)'
-                    }}
-                    onMouseEnter={(e) => { e.currentTarget.style.background = '#2563eb'; e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(59, 130, 246, 0.4)' }}
-                    onMouseLeave={(e) => { e.currentTarget.style.background = '#3b82f6'; e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 14px rgba(59, 130, 246, 0.3)' }}
-                    onClick={() => open('https://bypaxdpi.vercel.app/how-it-works')}
-                  >
-                    <HelpCircle size={18} />
-                    {t.adminHowItWorks}
-                  </button>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "10px",
+                  width: "100%",
+                }}
+              >
+                <button
+                  style={{
+                    background: "#3b82f6",
+                    color: "white",
+                    padding: "0.8rem 2rem",
+                    border: "none",
+                    borderRadius: "10px",
+                    fontSize: "0.95rem",
+                    fontWeight: "600",
+                    cursor: "pointer",
+                    width: "100%",
+                    transition: "all 0.2s ease",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "8px",
+                    boxShadow: "0 4px 14px rgba(59, 130, 246, 0.3)",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = "#2563eb";
+                    e.currentTarget.style.transform = "translateY(-1px)";
+                    e.currentTarget.style.boxShadow =
+                      "0 6px 20px rgba(59, 130, 246, 0.4)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = "#3b82f6";
+                    e.currentTarget.style.transform = "translateY(0)";
+                    e.currentTarget.style.boxShadow =
+                      "0 4px 14px rgba(59, 130, 246, 0.3)";
+                  }}
+                  onClick={() =>
+                    open("https://bypaxdpi.vercel.app/how-it-works")
+                  }
+                >
+                  <HelpCircle size={18} />
+                  {t.adminHowItWorks}
+                </button>
 
-                  <button 
-                    style={{ 
-                      background: '#ef4444', 
-                      color: 'white', 
-                      padding: '0.8rem 2rem', 
-                      border: 'none', 
-                      borderRadius: '10px', 
-                      fontSize: '0.95rem', 
-                      fontWeight: '600', 
-                      cursor: 'pointer',
-                      width: '100%',
-                      transition: 'opacity 0.2s',
-                    }}
-                    onMouseEnter={(e) => e.target.style.opacity = '0.9'}
-                    onMouseLeave={(e) => e.target.style.opacity = '1'}
-                    onClick={async () => {
-                      try {
-                        await invoke('quit_app');
-                      } catch (e) {
-                        console.error('Quit app failed:', e);
-                        await getCurrentWindow().destroy();
-                      }
-                    }}
-                  >
-                    {t.adminClose}
-                  </button>
-                </div>
+                <button
+                  style={{
+                    background: "#ef4444",
+                    color: "white",
+                    padding: "0.8rem 2rem",
+                    border: "none",
+                    borderRadius: "10px",
+                    fontSize: "0.95rem",
+                    fontWeight: "600",
+                    cursor: "pointer",
+                    width: "100%",
+                    transition: "opacity 0.2s",
+                  }}
+                  onMouseEnter={(e) => (e.target.style.opacity = "0.9")}
+                  onMouseLeave={(e) => (e.target.style.opacity = "1")}
+                  onClick={async () => {
+                    try {
+                      await invoke("quit_app");
+                    } catch (e) {
+                      console.error("Quit app failed:", e);
+                      await getCurrentWindow().destroy();
+                    }
+                  }}
+                >
+                  {t.adminClose}
+                </button>
+              </div>
             </div>
           </motion.div>
         )}
@@ -1283,12 +1459,18 @@ function App() {
           <img src="/bypax-logo.png" alt="BypaxDPI" className="brand-logo" />
           <span className="brand-name">BYPAXDPI</span>
         </div>
-        <div className={`status-badge ${isConnected ? 'active' : (isProcessing ? 'processing' : 'passive')}`}>
+        <div
+          className={`status-badge ${isConnected ? "active" : isProcessing ? "processing" : "passive"}`}
+        >
           <div className="status-dot" />
           <span>
-            {isProcessing 
-              ? (isConnected ? t.statusDisconnecting : t.statusConnecting) 
-              : (isConnected ? t.statusActive : t.statusReady)}
+            {isProcessing
+              ? isConnected
+                ? t.statusDisconnecting
+                : t.statusConnecting
+              : isConnected
+                ? t.statusActive
+                : t.statusReady}
           </span>
         </div>
       </header>
@@ -1298,23 +1480,25 @@ function App() {
         {!isOnline && (
           <motion.div
             initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
+            animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            style={{ overflow: 'hidden', background: '#eab308' }} // Yellow/Amber background for warning
+            style={{ overflow: "hidden", background: "#eab308" }} // Yellow/Amber background for warning
           >
-             <div style={{ 
-                padding: '8px 16px', 
-                display: 'flex', 
-                alignItems: 'center', 
-                justifyContent: 'center', 
-                gap: '8px',
-                color: '#000',
-                fontSize: '0.85rem',
-                fontWeight: '600'
-             }}>
-                <WifiOff size={16} />
-                <span>{t.noInternetTitle}</span>
-             </div>
+            <div
+              style={{
+                padding: "8px 16px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "8px",
+                color: "#000",
+                fontSize: "0.85rem",
+                fontWeight: "600",
+              }}
+            >
+              <WifiOff size={16} />
+              <span>{t.noInternetTitle}</span>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -1322,56 +1506,78 @@ function App() {
       {/* Main Content */}
       <main className="main-content">
         <div className="shield-wrapper">
-          <div className={`shield-circle ${isConnected ? 'connected' : (isProcessing ? 'processing' : '')}`}>
-            <Shield 
-              size={56} 
-              strokeWidth={1.5}
-              className="shield-icon"
-            />
+          <div
+            className={`shield-circle ${isConnected ? "connected" : isProcessing ? "processing" : ""}`}
+          >
+            <Shield size={56} strokeWidth={1.5} className="shield-icon" />
           </div>
         </div>
 
         <div className="status-text">
-          <h1 className={`status-title ${isConnected ? 'connected' : (isProcessing ? 'processing' : '')}`}>
-            {isProcessing 
-              ? (isConnected ? t.statusDisconnecting : t.statusConnecting)
-              : (isConnected ? t.statusConnected : t.statusReady2)}
+          <h1
+            className={`status-title ${isConnected ? "connected" : isProcessing ? "processing" : ""}`}
+          >
+            {isProcessing
+              ? isConnected
+                ? t.statusDisconnecting
+                : t.statusConnecting
+              : isConnected
+                ? t.statusConnected
+                : t.statusReady2}
           </h1>
           <p className="status-desc">
             {isProcessing
               ? t.descConnecting
-              : (isConnected 
-                  ? t.descConnected
-                  : t.descReady)}
+              : isConnected
+                ? t.descConnected
+                : t.descReady}
           </p>
 
           <AnimatePresence>
-            {isConnected && config.selectedDns && config.selectedDns !== 'system' && (
-              <motion.div
-                initial={{ opacity: 0, y: -5, height: 0 }}
-                animate={{ opacity: 1, y: 0, height: 'auto', marginTop: '12px' }}
-                exit={{ opacity: 0, y: -5, height: 0, marginTop: 0 }}
-                style={{ display: 'flex', justifyContent: 'center' }}
-              >
-                <div style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  background: 'rgba(255, 255, 255, 0.05)',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
-                  color: '#a1a1aa',
-                  padding: '5px 14px',
-                  borderRadius: '20px',
-                  fontSize: '0.75rem',
-                  fontWeight: '500',
-                  letterSpacing: '0.02em',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
-                }}>
-                  <Globe size={13} strokeWidth={2.5} style={{ color: '#60a5fa' }} />
-                  <span>DNS: <span style={{color: '#e2e8f0', fontWeight: '600'}}>{config.selectedDns.toUpperCase()}</span></span>
-                </div>
-              </motion.div>
-            )}
+            {isConnected &&
+              config.selectedDns &&
+              config.selectedDns !== "system" && (
+                <motion.div
+                  initial={{ opacity: 0, y: -5, height: 0 }}
+                  animate={{
+                    opacity: 1,
+                    y: 0,
+                    height: "auto",
+                    marginTop: "12px",
+                  }}
+                  exit={{ opacity: 0, y: -5, height: 0, marginTop: 0 }}
+                  style={{ display: "flex", justifyContent: "center" }}
+                >
+                  <div
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      background: "rgba(255, 255, 255, 0.05)",
+                      border: "1px solid rgba(255, 255, 255, 0.1)",
+                      color: "#a1a1aa",
+                      padding: "5px 14px",
+                      borderRadius: "20px",
+                      fontSize: "0.75rem",
+                      fontWeight: "500",
+                      letterSpacing: "0.02em",
+                      boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                    }}
+                  >
+                    <Globe
+                      size={13}
+                      strokeWidth={2.5}
+                      style={{ color: "#60a5fa" }}
+                    />
+                    <span>
+                      DNS:{" "}
+                      <span style={{ color: "#e2e8f0", fontWeight: "600" }}>
+                        {config.selectedDns.toUpperCase()}
+                      </span>
+                    </span>
+                  </div>
+                </motion.div>
+              )}
           </AnimatePresence>
         </div>
       </main>
@@ -1380,37 +1586,43 @@ function App() {
       <div className="action-area">
         {/* LAN Connect Button */}
         <AnimatePresence>
-            {config.lanSharing && isConnected && (
-                <motion.button 
-                    initial={{ opacity: 0, y: 10, height: 0 }}
-                    animate={{ opacity: 1, y: 0, height: 'auto', marginBottom: '1rem' }}
-                    exit={{ opacity: 0, y: 10, height: 0, marginBottom: 0 }}
-                    className="lan-connect-pill-btn"
-                    onClick={() => setShowConnectionModal(true)}
-                >
-                    <Smartphone size={16} />
-                    <span>{t.btnConnectDevices}</span>
-                    <div className="arrow-icon">›</div>
-                </motion.button>
-            )}
+          {config.lanSharing && isConnected && (
+            <motion.button
+              initial={{ opacity: 0, y: 10, height: 0 }}
+              animate={{
+                opacity: 1,
+                y: 0,
+                height: "auto",
+                marginBottom: "1rem",
+              }}
+              exit={{ opacity: 0, y: 10, height: 0, marginBottom: 0 }}
+              className="lan-connect-pill-btn"
+              onClick={() => setShowConnectionModal(true)}
+            >
+              <Smartphone size={16} />
+              <span>{t.btnConnectDevices}</span>
+              <div className="arrow-icon">›</div>
+            </motion.button>
+          )}
         </AnimatePresence>
 
-        <button 
-          className={`main-btn ${isConnected ? 'disconnect' : 'connect'} ${isProcessing ? 'processing' : ''}`}
+        <button
+          className={`main-btn ${isConnected ? "disconnect" : "connect"} ${isProcessing ? "processing" : ""}`}
           onClick={toggleConnection}
           disabled={isProcessing}
         >
           <Power size={22} strokeWidth={2.5} />
           <span>
-            {isProcessing 
-              ? (isConnected ? t.btnDisconnecting : t.btnConnecting)
-              : (isConnected ? t.btnDisconnect : t.btnConnect)
-            }
+            {isProcessing
+              ? isConnected
+                ? t.btnDisconnecting
+                : t.btnConnecting
+              : isConnected
+                ? t.btnDisconnect
+                : t.btnConnect}
           </span>
         </button>
       </div>
-
-
 
       {/* Bottom Navigation */}
       <nav className="bottom-nav">
@@ -1433,7 +1645,10 @@ function App() {
       {showLogs && (
         <div className="logs-overlay">
           <div className="logs-header">
-            <button className="logs-back-btn" onClick={() => setShowLogs(false)}>
+            <button
+              className="logs-back-btn"
+              onClick={() => setShowLogs(false)}
+            >
               <X size={24} />
             </button>
             <div className="logs-title">
@@ -1445,7 +1660,9 @@ function App() {
           <div className="console-content">
             {logs.map((log, index) => (
               <div key={log.id} className={`log-line log-${log.type}`}>
-                <span className="log-number">{String(index + 1).padStart(3, '0')}</span>
+                <span className="log-number">
+                  {String(index + 1).padStart(3, "0")}
+                </span>
                 <span className="log-time">[{log.time}]</span>
                 <span className="log-msg">{log.msg}</span>
               </div>
@@ -1458,13 +1675,19 @@ function App() {
               <Trash2 size={18} />
               <span>{t.logsClear}</span>
             </button>
-            <button 
-              className={`logs-action-btn copy-btn ${copyStatus}`} 
+            <button
+              className={`logs-action-btn copy-btn ${copyStatus}`}
               onClick={copyLogs}
               disabled={logs.length === 0}
             >
               <Copy size={18} />
-              <span>{copyStatus === 'success' ? t.logsCopied : copyStatus === 'error' ? t.logsCopyError : t.logsCopy}</span>
+              <span>
+                {copyStatus === "success"
+                  ? t.logsCopied
+                  : copyStatus === "error"
+                    ? t.logsCopyError
+                    : t.logsCopy}
+              </span>
             </button>
           </div>
         </div>
@@ -1473,332 +1696,539 @@ function App() {
       {/* Connection Info Modal */}
       <AnimatePresence>
         {showConnectionModal && (
-            <motion.div 
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="modal-overlay"
-                style={{ zIndex: 10000, background: 'rgba(9, 9, 11, 0.65)', backdropFilter: 'blur(6px)' }}
-                onClick={() => setShowConnectionModal(false)}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="modal-overlay"
+            style={{
+              zIndex: 10000,
+              background: "rgba(9, 9, 11, 0.65)",
+              backdropFilter: "blur(6px)",
+            }}
+            onClick={() => setShowConnectionModal(false)}
+          >
+            <div
+              style={{
+                position: "absolute",
+                top: "40%",
+                left: "50%",
+                transform: "translate(-50%, -50%)",
+                width: "100%",
+                height: "400px",
+                background:
+                  "radial-gradient(circle, rgba(59, 130, 246, 0.12) 0%, rgba(0,0,0,0) 50%)",
+                pointerEvents: "none",
+                zIndex: 0,
+              }}
+            />
+
+            <motion.div
+              initial={{ scale: 0.95, y: 15, opacity: 0 }}
+              animate={{ scale: 1, y: 0, opacity: 1 }}
+              exit={{ scale: 0.95, y: 15, opacity: 0 }}
+              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              className="connection-modal"
+              style={{
+                zIndex: 1,
+                maxWidth: "360px",
+                background: "#18181b",
+                border: "1px solid rgba(255, 255, 255, 0.12)",
+                boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.5)",
+                padding: "24px",
+              }}
+              onClick={(e) => e.stopPropagation()}
             >
-                <div style={{
-                   position: 'absolute',
-                   top: '40%',
-                   left: '50%',
-                   transform: 'translate(-50%, -50%)',
-                   width: '100%',
-                   height: '400px',
-                   background: 'radial-gradient(circle, rgba(59, 130, 246, 0.12) 0%, rgba(0,0,0,0) 50%)',
-                   pointerEvents: 'none',
-                   zIndex: 0
-                }} />
-
-                <motion.div 
-                    initial={{ scale: 0.95, y: 15, opacity: 0 }}
-                    animate={{ scale: 1, y: 0, opacity: 1 }}
-                    exit={{ scale: 0.95, y: 15, opacity: 0 }}
-                    transition={{ type: "spring", damping: 25, stiffness: 300 }}
-                    className="connection-modal"
-                    style={{ 
-                        zIndex: 1, 
-                        maxWidth: '360px',
-                        background: '#18181b',
-                        border: '1px solid rgba(255, 255, 255, 0.12)',
-                        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
-                        padding: '24px'
-                    }}
-                    onClick={e => e.stopPropagation()}
+              <div
+                className="modal-header"
+                style={{
+                  marginBottom: "1.5rem",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "1rem",
+                  position: "relative",
+                }}
+              >
+                <div
+                  style={{
+                    width: "48px",
+                    height: "48px",
+                    borderRadius: "14px",
+                    background: "rgba(59, 130, 246, 0.1)",
+                    border: "1px solid rgba(59, 130, 246, 0.2)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
                 >
-                    <div className="modal-header" style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem', position: 'relative' }}>
-                        <div style={{ 
-                            width: '48px', 
-                            height: '48px', 
-                            borderRadius: '14px', 
-                            background: 'rgba(59, 130, 246, 0.1)', 
-                            border: '1px solid rgba(59, 130, 246, 0.2)',
-                            display: 'flex', 
-                            alignItems: 'center', 
-                            justifyContent: 'center' 
-                        }}>
-                            <Smartphone size={24} color="#3b82f6" />
-                        </div>
-                        <div>
-                           <h2 style={{ fontSize: '1.15rem', fontWeight: '700', color: '#f8fafc', margin: 0, marginBottom: '2px' }}>{t.modalTitle}</h2>
-                           <p style={{fontSize: '0.8rem', color: '#94a3b8', margin: 0}}>{t.modalSubtitle}</p>
-                        </div>
-                        <button 
-                          className="close-btn" 
-                          onClick={() => setShowConnectionModal(false)}
-                          style={{
-                              position: 'absolute',
-                              right: '-5px',
-                              top: '-5px',
-                              background: 'rgba(255, 255, 255, 0.05)',
-                              border: '1px solid rgba(255, 255, 255, 0.1)',
-                              color: '#a1a1aa',
-                              width: '32px',
-                              height: '32px',
-                              borderRadius: '50%',
-                              padding: 0,
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              cursor: 'pointer',
-                              transition: 'all 0.2s'
-                          }}
-                          onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'; e.currentTarget.style.color = '#fff' }}
-                          onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'; e.currentTarget.style.color = '#a1a1aa' }}
+                  <Smartphone size={24} color="#3b82f6" />
+                </div>
+                <div>
+                  <h2
+                    style={{
+                      fontSize: "1.15rem",
+                      fontWeight: "700",
+                      color: "#f8fafc",
+                      margin: 0,
+                      marginBottom: "2px",
+                    }}
+                  >
+                    {t.modalTitle}
+                  </h2>
+                  <p
+                    style={{ fontSize: "0.8rem", color: "#94a3b8", margin: 0 }}
+                  >
+                    {t.modalSubtitle}
+                  </p>
+                </div>
+                <button
+                  className="close-btn"
+                  onClick={() => setShowConnectionModal(false)}
+                  style={{
+                    position: "absolute",
+                    right: "-5px",
+                    top: "-5px",
+                    background: "rgba(255, 255, 255, 0.05)",
+                    border: "1px solid rgba(255, 255, 255, 0.1)",
+                    color: "#a1a1aa",
+                    width: "32px",
+                    height: "32px",
+                    borderRadius: "50%",
+                    padding: 0,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    cursor: "pointer",
+                    transition: "all 0.2s",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background =
+                      "rgba(255, 255, 255, 0.1)";
+                    e.currentTarget.style.color = "#fff";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background =
+                      "rgba(255, 255, 255, 0.05)";
+                    e.currentTarget.style.color = "#a1a1aa";
+                  }}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="modal-body">
+                {/* Sekmeler */}
+                <div
+                  style={{
+                    display: "flex",
+                    gap: "4px",
+                    marginBottom: "1.25rem",
+                    background: "rgba(255,255,255,0.06)",
+                    padding: "4px",
+                    borderRadius: "10px",
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setConnectionModalTab("pac")}
+                    style={{
+                      flex: 1,
+                      padding: "0.5rem 0.75rem",
+                      borderRadius: "8px",
+                      border: "none",
+                      background:
+                        connectionModalTab === "pac"
+                          ? "rgba(34, 197, 94, 0.25)"
+                          : "transparent",
+                      color:
+                        connectionModalTab === "pac" ? "#4ade80" : "#94a3b8",
+                      fontWeight: connectionModalTab === "pac" ? 600 : 500,
+                      fontSize: "0.8rem",
+                      cursor: "pointer",
+                      transition: "all 0.2s",
+                    }}
+                  >
+                    {t.modalTabPac}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConnectionModalTab("manual")}
+                    style={{
+                      flex: 1,
+                      padding: "0.5rem 0.75rem",
+                      borderRadius: "8px",
+                      border: "none",
+                      background:
+                        connectionModalTab === "manual"
+                          ? "rgba(59, 130, 246, 0.2)"
+                          : "transparent",
+                      color:
+                        connectionModalTab === "manual" ? "#60a5fa" : "#94a3b8",
+                      fontWeight: connectionModalTab === "manual" ? 600 : 500,
+                      fontSize: "0.8rem",
+                      cursor: "pointer",
+                      transition: "all 0.2s",
+                    }}
+                  >
+                    {t.modalTabManual}
+                  </button>
+                </div>
+
+                {connectionModalTab === "pac" && (
+                  <>
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "center",
+                        marginBottom: "0.5rem",
+                      }}
+                    >
+                      <QRCodeSVG
+                        value={`http://${lanIp}:8787/`}
+                        size={120}
+                        level="M"
+                      />
+                    </div>
+                    <p
+                      style={{
+                        fontSize: "0.75rem",
+                        color: "#71717a",
+                        textAlign: "center",
+                        margin: "0 0 1rem",
+                      }}
+                    >
+                      {t.modalPacQrCaption}
+                    </p>
+                    <p
+                      style={{
+                        fontSize: "0.85rem",
+                        color: "#94a3b8",
+                        lineHeight: "1.5",
+                        marginBottom: "0.75rem",
+                      }}
+                    >
+                      <span
+                        dangerouslySetInnerHTML={{ __html: t.modalDescPac }}
+                      />
+                    </p>
+                    <div style={{ marginBottom: "0.75rem" }}>
+                      <label
+                        style={{
+                          display: "block",
+                          fontSize: "0.75rem",
+                          color: "#22c55e",
+                          marginBottom: "0.5rem",
+                          textTransform: "uppercase",
+                          fontWeight: "600",
+                          letterSpacing: "0.05em",
+                        }}
+                      >
+                        {t.modalPacUrl}
+                      </label>
+                      <div
+                        className="code-box"
+                        onClick={() =>
+                          writeText(`http://${lanIp}:8787/proxy.pac`)
+                        }
+                        title="Kopyala"
+                      >
+                        <span
+                          style={{ fontSize: "0.8rem", wordBreak: "break-all" }}
                         >
-                            <X size={18} />
-                        </button>
+                          http://{lanIp}:8787/proxy.pac
+                        </span>
+                        <Copy size={16} color="#71717a" />
+                      </div>
                     </div>
-                    
-                    <div className="modal-body">
-                        {/* Sekmeler */}
-                        <div style={{ display: 'flex', gap: '4px', marginBottom: '1.25rem', background: 'rgba(255,255,255,0.06)', padding: '4px', borderRadius: '10px' }}>
-                            <button
-                              type="button"
-                              onClick={() => setConnectionModalTab('pac')}
-                              style={{
-                                flex: 1,
-                                padding: '0.5rem 0.75rem',
-                                borderRadius: '8px',
-                                border: 'none',
-                                background: connectionModalTab === 'pac' ? 'rgba(34, 197, 94, 0.25)' : 'transparent',
-                                color: connectionModalTab === 'pac' ? '#4ade80' : '#94a3b8',
-                                fontWeight: connectionModalTab === 'pac' ? 600 : 500,
-                                fontSize: '0.8rem',
-                                cursor: 'pointer',
-                                transition: 'all 0.2s'
-                              }}
-                            >
-                              {t.modalTabPac}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setConnectionModalTab('manual')}
-                              style={{
-                                flex: 1,
-                                padding: '0.5rem 0.75rem',
-                                borderRadius: '8px',
-                                border: 'none',
-                                background: connectionModalTab === 'manual' ? 'rgba(59, 130, 246, 0.2)' : 'transparent',
-                                color: connectionModalTab === 'manual' ? '#60a5fa' : '#94a3b8',
-                                fontWeight: connectionModalTab === 'manual' ? 600 : 500,
-                                fontSize: '0.8rem',
-                                cursor: 'pointer',
-                                transition: 'all 0.2s'
-                              }}
-                            >
-                              {t.modalTabManual}
-                            </button>
+                    <p
+                      style={{
+                        fontSize: "0.8rem",
+                        color: "#94a3b8",
+                        lineHeight: "1.5",
+                        marginBottom: "0.5rem",
+                        padding: "0 0.5rem",
+                      }}
+                    >
+                      <span
+                        dangerouslySetInnerHTML={{ __html: t.modalPacQrHint }}
+                      />
+                    </p>
+                  </>
+                )}
+
+                {connectionModalTab === "manual" && (
+                  <>
+                    <p
+                      style={{
+                        fontSize: "0.85rem",
+                        color: "#94a3b8",
+                        lineHeight: "1.5",
+                        marginBottom: "1rem",
+                      }}
+                    >
+                      <span dangerouslySetInnerHTML={{ __html: t.modalDesc }} />
+                    </p>
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "1rem",
+                        marginBottom: "1.5rem",
+                      }}
+                    >
+                      <div>
+                        <label
+                          style={{
+                            display: "block",
+                            fontSize: "0.75rem",
+                            color: "#71717a",
+                            marginBottom: "0.5rem",
+                            textTransform: "uppercase",
+                            fontWeight: "600",
+                            letterSpacing: "0.05em",
+                          }}
+                        >
+                          {t.modalHost}
+                        </label>
+                        <div
+                          className="code-box"
+                          onClick={() => writeText(lanIp)}
+                          title="Kopyala"
+                        >
+                          <span>{lanIp}</span>
+                          <Copy size={16} color="#71717a" />
                         </div>
-
-                        {connectionModalTab === 'pac' && (
-                          <>
-                            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '0.5rem' }}>
-                              <QRCodeSVG value={`http://${lanIp}:8787/`} size={120} level="M" />
-                            </div>
-                            <p style={{ fontSize: '0.75rem', color: '#71717a', textAlign: 'center', margin: '0 0 1rem' }}>
-                              {t.modalPacQrCaption}
-                            </p>
-                            <p style={{ fontSize: '0.85rem', color: '#94a3b8', lineHeight: '1.5', marginBottom: '0.75rem' }}>
-                              <span dangerouslySetInnerHTML={{ __html: t.modalDescPac }} />
-                            </p>
-                            <div style={{ marginBottom: '0.75rem' }}>
-                              <label style={{ display: 'block', fontSize: '0.75rem', color: '#22c55e', marginBottom: '0.5rem', textTransform: 'uppercase', fontWeight: '600', letterSpacing: '0.05em' }}>
-                                {t.modalPacUrl}
-                              </label>
-                              <div 
-                                className="code-box" 
-                                onClick={() => writeText(`http://${lanIp}:8787/proxy.pac`)}
-                                title="Kopyala"
-                              >
-                                <span style={{ fontSize: '0.8rem', wordBreak: 'break-all' }}>http://{lanIp}:8787/proxy.pac</span>
-                                <Copy size={16} color="#71717a" />
-                              </div>
-                            </div>
-                            <p style={{ fontSize: '0.8rem', color: '#94a3b8', lineHeight: '1.5', marginBottom: 0 }}>
-                              <span dangerouslySetInnerHTML={{ __html: t.modalPacQrHint }} />
-                            </p>
-                          </>
-                        )}
-
-                        {connectionModalTab === 'manual' && (
-                          <>
-                            <p style={{ fontSize: '0.85rem', color: '#94a3b8', lineHeight: '1.5', marginBottom: '1rem' }}>
-                              <span dangerouslySetInnerHTML={{ __html: t.modalDesc }} />
-                            </p>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.5rem' }}>
-                              <div>
-                                <label style={{ display: 'block', fontSize: '0.75rem', color: '#71717a', marginBottom: '0.5rem', textTransform: 'uppercase', fontWeight: '600', letterSpacing: '0.05em' }}>
-                                  {t.modalHost}
-                                </label>
-                                <div className="code-box" onClick={() => writeText(lanIp)} title="Kopyala">
-                                  <span>{lanIp}</span>
-                                  <Copy size={16} color="#71717a" />
-                                </div>
-                              </div>
-                              <div>
-                                <label style={{ display: 'block', fontSize: '0.75rem', color: '#71717a', marginBottom: '0.5rem', textTransform: 'uppercase', fontWeight: '600', letterSpacing: '0.05em' }}>
-                                  {t.modalPort}
-                                </label>
-                                <div className="code-box" onClick={() => writeText(currentPort.toString())} title="Kopyala">
-                                  <span>{currentPort}</span>
-                                  <Copy size={16} color="#71717a" />
-                                </div>
-                              </div>
-                            </div>
-                          </>
-                        )}
-
-                        <button 
-                            style={{ 
-                                width: '100%',
-                                background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
-                                color: 'white',
-                                border: 'none',
-                                padding: '0.85rem',
-                                borderRadius: '12px',
-                                fontWeight: '600',
-                                fontSize: '0.95rem',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: '8px',
-                                cursor: 'pointer',
-                                transition: 'all 0.2s',
-                                boxShadow: '0 4px 14px rgba(59, 130, 246, 0.3)'
-                            }}
-                            onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(59, 130, 246, 0.4)' }}
-                            onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 14px rgba(59, 130, 246, 0.3)' }}
-                            onClick={() => open('https://bypaxdpi.vercel.app/proxy')}
-                        > 
-                            <HelpCircle size={18} />
-                            {t.modalTutorial}
-                        </button>
+                      </div>
+                      <div>
+                        <label
+                          style={{
+                            display: "block",
+                            fontSize: "0.75rem",
+                            color: "#71717a",
+                            marginBottom: "0.5rem",
+                            textTransform: "uppercase",
+                            fontWeight: "600",
+                            letterSpacing: "0.05em",
+                          }}
+                        >
+                          {t.modalPort}
+                        </label>
+                        <div
+                          className="code-box"
+                          onClick={() => writeText(currentPort.toString())}
+                          title="Kopyala"
+                        >
+                          <span>{currentPort}</span>
+                          <Copy size={16} color="#71717a" />
+                        </div>
+                      </div>
                     </div>
-                </motion.div>
+                  </>
+                )}
+
+                <button
+                  style={{
+                    width: "100%",
+                    background:
+                      "linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)",
+                    color: "white",
+                    border: "none",
+                    padding: "0.85rem",
+                    borderRadius: "12px",
+                    fontWeight: "600",
+                    fontSize: "0.95rem",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "8px",
+                    cursor: "pointer",
+                    transition: "all 0.2s",
+                    boxShadow: "0 4px 14px rgba(59, 130, 246, 0.3)",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = "translateY(-1px)";
+                    e.currentTarget.style.boxShadow =
+                      "0 6px 20px rgba(59, 130, 246, 0.4)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = "translateY(0)";
+                    e.currentTarget.style.boxShadow =
+                      "0 4px 14px rgba(59, 130, 246, 0.3)";
+                  }}
+                  onClick={() => open("https://bypaxdpi.vercel.app/proxy")}
+                >
+                  <HelpCircle size={18} />
+                  {t.modalTutorial}
+                </button>
+              </div>
             </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
 
       {/* Custom Confirm Modal */}
       <AnimatePresence>
         {confirmState.isOpen && (
-            <motion.div 
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="modal-overlay"
-                style={{ zIndex: 999999, background: 'rgba(9, 9, 11, 0.65)', backdropFilter: 'blur(6px)' }}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="modal-overlay"
+            style={{
+              zIndex: 999999,
+              background: "rgba(9, 9, 11, 0.65)",
+              backdropFilter: "blur(6px)",
+            }}
+          >
+            <div
+              style={{
+                position: "absolute",
+                top: "40%",
+                left: "50%",
+                transform: "translate(-50%, -50%)",
+                width: "100%",
+                height: "400px",
+                background:
+                  "radial-gradient(circle, rgba(239, 68, 68, 0.12) 0%, rgba(0,0,0,0) 50%)",
+                pointerEvents: "none",
+                zIndex: 0,
+              }}
+            />
+
+            <motion.div
+              initial={{ scale: 0.95, y: 15, opacity: 0 }}
+              animate={{ scale: 1, y: 0, opacity: 1 }}
+              exit={{ scale: 0.95, y: 15, opacity: 0 }}
+              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              className="connection-modal"
+              style={{
+                zIndex: 1,
+                textAlign: "center",
+                maxWidth: "340px",
+                background: "#18181b",
+                border: "1px solid rgba(255, 255, 255, 0.12)",
+                boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.5)",
+                padding: "24px",
+              }}
+              onClick={(e) => e.stopPropagation()}
             >
-                <div style={{
-                   position: 'absolute',
-                   top: '40%',
-                   left: '50%',
-                   transform: 'translate(-50%, -50%)',
-                   width: '100%',
-                   height: '400px',
-                   background: 'radial-gradient(circle, rgba(239, 68, 68, 0.12) 0%, rgba(0,0,0,0) 50%)',
-                   pointerEvents: 'none',
-                   zIndex: 0
-                }} />
-                
-                <motion.div 
-                    initial={{ scale: 0.95, y: 15, opacity: 0 }}
-                    animate={{ scale: 1, y: 0, opacity: 1 }}
-                    exit={{ scale: 0.95, y: 15, opacity: 0 }}
-                    transition={{ type: "spring", damping: 25, stiffness: 300 }}
-                    className="connection-modal"
-                    style={{ 
-                        zIndex: 1, 
-                        textAlign: 'center', 
-                        maxWidth: '340px',
-                        background: '#18181b',
-                        border: '1px solid rgba(255, 255, 255, 0.12)',
-                        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
-                        padding: '24px'
-                    }}
-                    onClick={e => e.stopPropagation()}
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                }}
+              >
+                <div
+                  style={{
+                    background: "rgba(239, 68, 68, 0.1)",
+                    color: "#ef4444",
+                    width: "64px",
+                    height: "64px",
+                    borderRadius: "50%",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    marginBottom: "1.25rem",
+                    border: "1px solid rgba(239, 68, 68, 0.2)",
+                  }}
                 >
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                        <div style={{ 
-                            background: 'rgba(239, 68, 68, 0.1)', 
-                            color: '#ef4444', 
-                            width: '64px', 
-                            height: '64px', 
-                            borderRadius: '50%', 
-                            display: 'flex', 
-                            alignItems: 'center', 
-                            justifyContent: 'center',
-                            marginBottom: '1.25rem',
-                            border: '1px solid rgba(239, 68, 68, 0.2)'
-                        }}>
-                           <AlertTriangle size={30} strokeWidth={1.5} />
-                        </div>
-                        
-                        <h2 style={{ fontSize: '1.25rem', color: '#f8fafc', marginBottom: '0.75rem', fontWeight: '600' }}>
-                            {confirmState.title}
-                        </h2>
-                        <p style={{ color: '#94a3b8', fontSize: '0.9rem', marginBottom: '2rem', lineHeight: '1.6' }}>
-                            {confirmState.desc}
-                        </p>
-                        
-                        <div style={{ display: 'flex', gap: '12px', width: '100%' }}>
-                            <button 
-                                onClick={() => handleConfirmResult(false)}
-                                style={{
-                                    fontFamily: 'inherit',
-                                    flex: 1,
-                                    background: 'rgba(255, 255, 255, 0.03)',
-                                    color: '#cbd5e1',
-                                    padding: '0.85rem',
-                                    border: '1px solid rgba(255, 255, 255, 0.08)',
-                                    borderRadius: '10px',
-                                    fontWeight: '500',
-                                    fontSize: '0.95rem',
-                                    cursor: 'pointer',
-                                    transition: 'all 0.2s ease'
-                                }}
-                                onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)'; e.currentTarget.style.color = '#fff' }}
-                                onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.03)'; e.currentTarget.style.color = '#cbd5e1' }}
-                            >
-                                {t.btnNo || 'İptal'}
-                            </button>
-                            <button 
-                                onClick={() => handleConfirmResult(true)}
-                                style={{
-                                    fontFamily: 'inherit',
-                                    flex: 1,
-                                    background: '#ef4444',
-                                    color: '#ffffff',
-                                    padding: '0.85rem',
-                                    border: 'none',
-                                    borderRadius: '10px',
-                                    fontWeight: '600',
-                                    fontSize: '0.95rem',
-                                    cursor: 'pointer',
-                                    boxShadow: '0 4px 14px rgba(239, 68, 68, 0.3)',
-                                    transition: 'all 0.2s ease'
-                                }}
-                                onMouseEnter={(e) => { e.currentTarget.style.background = '#dc2626'; e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(239, 68, 68, 0.4)' }}
-                                onMouseLeave={(e) => { e.currentTarget.style.background = '#ef4444'; e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 14px rgba(239, 68, 68, 0.3)' }}
-                            >
-                                {t.btnYes || 'Onayla'}
-                            </button>
-                        </div>
-                    </div>
-                </motion.div>
+                  <AlertTriangle size={30} strokeWidth={1.5} />
+                </div>
+
+                <h2
+                  style={{
+                    fontSize: "1.25rem",
+                    color: "#f8fafc",
+                    marginBottom: "0.75rem",
+                    fontWeight: "600",
+                  }}
+                >
+                  {confirmState.title}
+                </h2>
+                <p
+                  style={{
+                    color: "#94a3b8",
+                    fontSize: "0.9rem",
+                    marginBottom: "2rem",
+                    lineHeight: "1.6",
+                  }}
+                >
+                  {confirmState.desc}
+                </p>
+
+                <div style={{ display: "flex", gap: "12px", width: "100%" }}>
+                  <button
+                    onClick={() => handleConfirmResult(false)}
+                    style={{
+                      fontFamily: "inherit",
+                      flex: 1,
+                      background: "rgba(255, 255, 255, 0.03)",
+                      color: "#cbd5e1",
+                      padding: "0.85rem",
+                      border: "1px solid rgba(255, 255, 255, 0.08)",
+                      borderRadius: "10px",
+                      fontWeight: "500",
+                      fontSize: "0.95rem",
+                      cursor: "pointer",
+                      transition: "all 0.2s ease",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background =
+                        "rgba(255, 255, 255, 0.08)";
+                      e.currentTarget.style.color = "#fff";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background =
+                        "rgba(255, 255, 255, 0.03)";
+                      e.currentTarget.style.color = "#cbd5e1";
+                    }}
+                  >
+                    {t.btnNo || "İptal"}
+                  </button>
+                  <button
+                    onClick={() => handleConfirmResult(true)}
+                    style={{
+                      fontFamily: "inherit",
+                      flex: 1,
+                      background: "#ef4444",
+                      color: "#ffffff",
+                      padding: "0.85rem",
+                      border: "none",
+                      borderRadius: "10px",
+                      fontWeight: "600",
+                      fontSize: "0.95rem",
+                      cursor: "pointer",
+                      boxShadow: "0 4px 14px rgba(239, 68, 68, 0.3)",
+                      transition: "all 0.2s ease",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = "#dc2626";
+                      e.currentTarget.style.transform = "translateY(-1px)";
+                      e.currentTarget.style.boxShadow =
+                        "0 6px 20px rgba(239, 68, 68, 0.4)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = "#ef4444";
+                      e.currentTarget.style.transform = "translateY(0)";
+                      e.currentTarget.style.boxShadow =
+                        "0 4px 14px rgba(239, 68, 68, 0.3)";
+                    }}
+                  >
+                    {t.btnYes || "Onayla"}
+                  </button>
+                </div>
+              </div>
             </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
 
       {showSettings && (
-        <Settings 
-          onBack={() => setShowSettings(false)} 
-          config={config} 
-          updateConfig={updateConfig} 
+        <Settings
+          onBack={() => setShowSettings(false)}
+          config={config}
+          updateConfig={updateConfig}
         />
       )}
     </div>

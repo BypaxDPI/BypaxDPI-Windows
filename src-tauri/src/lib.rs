@@ -56,8 +56,6 @@ fn make_setup_html(pac_url: &str) -> String {
 * {{ box-sizing: border-box; }}
 body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 0; background: linear-gradient(180deg, #0c0c0e 0%, #0f0f0f 100%); color: #e4e4e7; min-height: 100vh; }}
 .brand-header {{ text-align: center; padding: 24px 16px 20px; background: linear-gradient(135deg, rgba(59,130,246,0.08) 0%, transparent 50%); border-bottom: 1px solid rgba(255,255,255,0.06); }}
-.brand-logo-wrap {{ margin-bottom: 12px; }}
-.brand-logo-wrap img {{ width: 56px; height: 56px; display: block; margin: 0 auto; }}
 .brand-name {{ font-size: 1.5rem; font-weight: 800; margin: 0; letter-spacing: 0.05em; color: #fafafa; }}
 .brand-tagline {{ font-size: 0.85rem; color: #94a3b8; margin: 4px 0 0; }}
 .main {{ padding: 16px; max-width: 400px; margin: 0 auto; }}
@@ -76,7 +74,6 @@ ul {{ margin: 0; padding-left: 20px; color: #a1a1aa; font-size: 0.88rem; line-he
 </head>
 <body>
 <header class="brand-header">
-  <div class="brand-logo-wrap"><img src="/logo" alt="BypaxDPI" class="brand-logo"></div>
   <h1 class="brand-name">BypaxDPI</h1>
   <p class="brand-tagline">Proxy Kurulum</p>
 </header>
