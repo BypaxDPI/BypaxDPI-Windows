@@ -131,58 +131,192 @@ fn make_setup_html(pac_url: &str) -> String {
 <html lang="tr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BypaxDPI – Proxy Kurulum</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0">
+<title>BypaxDPI – Kurulum</title>
 <style>
-* {{ box-sizing: border-box; }}
-body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 0; background: linear-gradient(180deg, #0c0c0e 0%, #0f0f0f 100%); color: #e4e4e7; min-height: 100vh; }}
-.brand-header {{ text-align: center; padding: 24px 16px 20px; background: linear-gradient(135deg, rgba(59,130,246,0.08) 0%, transparent 50%); border-bottom: 1px solid rgba(255,255,255,0.06); }}
-.brand-name {{ font-size: 1.5rem; font-weight: 800; margin: 0; letter-spacing: 0.05em; color: #fafafa; }}
-.brand-tagline {{ font-size: 0.85rem; color: #94a3b8; margin: 4px 0 0; }}
-.main {{ padding: 16px; max-width: 400px; margin: 0 auto; }}
-p {{ font-size: 0.9rem; color: #a1a1aa; line-height: 1.5; margin: 0 0 12px; }}
-.url-input {{ width: 100%; background: #27272a; border: 1px solid #3f3f46; border-radius: 10px; padding: 12px; font-size: 0.85rem; color: #e4e4e7; margin: 8px 0; -webkit-user-select: all; user-select: all; }}
-.btn {{ display: inline-block; background: #3b82f6; color: #fff; border: none; padding: 12px 24px; border-radius: 10px; font-size: 1rem; font-weight: 600; cursor: pointer; margin: 8px 4px 8px 0; width: 100%; max-width: 280px; }}
-.btn:active {{ opacity: 0.9; }}
-.btn-android {{ background: #22c55e; font-size: 1.05rem; padding: 14px; }}
-.link {{ color: #60a5fa; text-decoration: none; display: inline-block; margin: 8px 0; }}
-.link:active {{ text-decoration: underline; }}
-h2 {{ font-size: 0.95rem; color: #d4d4d8; margin: 20px 0 8px; }}
-ul {{ margin: 0; padding-left: 20px; color: #a1a1aa; font-size: 0.88rem; line-height: 1.6; }}
-.copied {{ background: #22c55e !important; }}
-.step {{ margin: 10px 0; padding: 12px; background: rgba(34,197,94,0.08); border-radius: 12px; border-left: 4px solid #22c55e; }}
+:root {{
+    --bg-color: #09090b;
+    --card-bg: #18181b;
+    --primary: #3b82f6;
+    --primary-hover: #2563eb;
+    --success: #22c55e;
+    --text-main: #f8fafc;
+    --text-muted: #94a3b8;
+    --border: rgba(255,255,255,0.08);
+}}
+* {{ box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-tap-highlight-color: transparent; }}
+body {{ background-color: var(--bg-color); color: var(--text-main); line-height: 1.5; padding: 20px 16px; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }}
+.container {{ width: 100%; max-width: 440px; display: flex; flex-direction: column; gap: 20px; }}
+
+/* Header */
+.header {{ text-align: center; margin-bottom: 10px; animation: fadeDown 0.6s ease; }}
+.title {{ font-size: 1.5rem; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 4px; }}
+.subtitle {{ font-size: 0.9rem; color: var(--text-muted); }}
+
+/* Card */
+.card {{ background: var(--card-bg); border: 1px solid var(--border); border-radius: 20px; padding: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.5); animation: fadeUp 0.6s ease; }}
+.card-title {{ font-size: 1.05rem; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }}
+
+/* Input Group */
+.input-group {{ position: relative; margin-bottom: 16px; }}
+.url-input {{ width: 100%; background: #27272a; border: 1px solid #3f3f46; color: var(--text-main); font-size: 0.9rem; padding: 14px 16px; border-radius: 12px; outline: none; transition: border-color 0.2s; -webkit-user-select: all; user-select: all; }}
+.url-input:focus {{ border-color: var(--primary); }}
+
+/* Copy Button */
+.btn-copy {{ width: 100%; height: 50px; background: var(--primary); color: #fff; font-size: 1.05rem; font-weight: 600; padding: 0 20px; border: none; border-radius: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s; box-shadow: 0 4px 12px rgba(59,130,246,0.3); }}
+.btn-copy:active {{ transform: scale(0.98); }}
+.btn-copy.success {{ background: var(--success); box-shadow: 0 4px 12px rgba(34,197,94,0.3); }}
+
+/* Guide Button */
+.btn-guide {{ display: inline-flex; align-items: center; justify-content: center; background: var(--success); color: #fff; text-decoration: none; padding: 12px 16px; border-radius: 12px; font-size: 0.9rem; font-weight: 600; border: none; width: 100%; margin-top: 12px; transition: all 0.2s; box-shadow: 0 4px 12px rgba(34,197,94,0.3); }}
+.btn-guide:active {{ transform: scale(0.98); opacity: 0.9; }}
+
+/* Steps */
+.step-list {{ list-style: none; counter-reset: custom-counter; margin-top: 10px; display: flex; flex-direction: column; gap: 12px; }}
+.step-item {{ position: relative; padding-left: 36px; font-size: 0.9rem; color: #a1a1aa; }}
+.step-item::before {{ content: counter(custom-counter); counter-increment: custom-counter; position: absolute; left: 0; top: -1px; width: 24px; height: 24px; background: rgba(255,255,255,0.1); color: #fff; font-size: 0.75rem; font-weight: 600; display: flex; align-items: center; justify-content: center; border-radius: 50%; }}
+.step-item strong {{ color: #e2e8f0; font-weight: 600; display: block; margin-bottom: 2px; }}
+
+/* Language Switcher */
+.lang-switcher {{ display: flex; justify-content: center; gap: 12px; margin-bottom: 8px; animation: fadeDown 0.6s ease; }}
+.lang-btn {{ background: rgba(255,255,255,0.05); border: 1px solid var(--border); color: #fff; padding: 6px 16px; border-radius: 10px; font-size: 0.85rem; cursor: pointer; transition: all 0.2s; font-weight: 500; }}
+.lang-btn.active {{ background: var(--primary); border-color: var(--primary); font-weight: 700; box-shadow: 0 0 15px rgba(59,130,246,0.3); }}
+
+/* Divider */
+.divider {{ height: 1px; background: var(--border); margin: 24px 0; }}
+
+/* Animations */
+@keyframes fadeUp {{ from {{ opacity: 0; transform: translateY(15px); }} to {{ opacity: 1; transform: translateY(0); }} }}
+@keyframes fadeDown {{ from {{ opacity: 0; transform: translateY(-15px); }} to {{ opacity: 1; transform: translateY(0); }} }}
+
+/* Notice */
+.notice {{ background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); padding: 12px; border-radius: 12px; margin-top: 20px; font-size: 0.85rem; color: #fca5a5; display: flex; align-items: flex-start; gap: 10px; }}
+.notice-icon {{ font-size: 1.2rem; }}
 </style>
 </head>
 <body>
-<header class="brand-header">
-  <h1 class="brand-name">BypaxDPI</h1>
-  <p class="brand-tagline">Proxy Kurulum</p>
-</header>
-<main class="main">
-<p><strong>Android:</strong> Önce «Kopyala»ya bas, sonra aşağıdaki adımları izle. <strong>iPhone:</strong> Aşağı kaydır.</p>
-<input type="text" class="url-input" id="pacurl" value="{}" readonly onclick="this.select();">
-<button class="btn btn-android" id="copybtn">Kopyala (önce buna bas)</button>
-<p id="copyhint" style="font-size:0.8rem;color:#71717a;margin-top:0;">Kopyalamadıysa yukarıdaki kutuya uzun bas → Kopyala</p>
+<div class="container">
+    <div class="lang-switcher">
+        <button class="lang-btn active" id="btn-tr">TÜRKÇE</button>
+        <button class="lang-btn" id="btn-en">ENGLISH</button>
+    </div>
+
+    <header class="header">
+        <h1 class="title" data-tr="BypaxDPI'a Bağlan" data-en="Connect to BypaxDPI">BypaxDPI'a Bağlan</h1>
+        <p class="subtitle" data-tr="İnternet trafiğinizi şifreleyin ve engelleri aşın" data-en="Encrypt your traffic and bypass restrictions">İnternet trafiğinizi şifreleyin ve engelleri aşın</p>
+    </header>
+
+    <div class="card">
+        <div class="card-title">
+            <span>📱</span> <span data-tr="Android & iPhone Kurulumu" data-en="Android & iPhone Setup">Android & iPhone Kurulumu</span>
+        </div>
+
+        <div class="input-group">
+            <input type="text" class="url-input" id="pacurl" value="{}" readonly onclick="this.select();">
+        </div>
+
+        <button class="btn-copy" id="copybtn" data-tr="Adresi Kopyala" data-en="Copy Address">
+            Adresi Kopyala
+        </button>
+
+        <a href="https://bypaxdpi.vercel.app/proxy" target="_blank" class="btn-guide" data-tr="❓ Görsel Kurulum Rehberi" data-en="❓ Visual Setup Guide">
+            ❓ Görsel Kurulum Rehberi
+        </a>
+
+        <div class="divider"></div>
+
+        <div class="card-title" style="font-size:0.95rem; margin-bottom:12px;" data-tr="Nasıl yapılır kısaca?" data-en="Quick Guide">Nasıl yapılır kısaca?</div>
+        <ul class="step-list">
+            <li class="step-item">
+                <strong data-tr="Yeşil butona basarak adresi kopyalayın." data-en="Copy the address using the green button.">Yeşil butona basarak adresi kopyalayın.</strong>
+                <span data-tr="Kopyalanmazsa kutuya uzun basıp elle kopyalayın." data-en="If copy fails, long press the box to copy manually.">Kopyalanmazsa kutuya uzun basıp elle kopyalayın.</span>
+            </li>
+            <li class="step-item">
+                <strong data-tr="Wi-Fi ayarlarınıza gidin." data-en="Go to Wi-Fi settings.">Wi-Fi ayarlarınıza gidin.</strong>
+                <span data-tr="Bağlı olduğunuz ağın yanındaki (Ayarlar ⚙️ / i) ikonuna dokunun." data-en="Tap the (Settings ⚙️ / i) icon next to your network.">Bağlı olduğunuz ağın yanındaki (Ayarlar ⚙️ / i) ikonuna dokunun.</span>
+            </li>
+            <li class="step-item">
+                <strong data-tr="Proxy ayarını 'Otomatik / PAC' olarak değiştirin." data-en="Change Proxy to 'Automatic / PAC'.">Proxy ayarını "Otomatik / PAC" olarak değiştirin.</strong>
+                <span data-tr="Gelişmiş ayarlar menüsünün altında bulunabilir." data-en="Can be found under advanced settings.">Gelişmiş ayarlar menüsünün altında bulunabilir.</span>
+            </li>
+            <li class="step-item">
+                <strong data-tr="Kopyaladığınız adresi yapıştırın ve kaydedin." data-en="Paste the copied address and save.">Kopyaladığınız adresi yapıştırın ve kaydedin.</strong>
+                <span data-tr="Artık bağlantınız güvende!" data-en="Your connection is now secure!">Artık bağlantınız güvende!</span>
+            </li>
+        </ul>
+    </div>
+
+    <div class="notice">
+        <span class="notice-icon">⚠</span>
+        <div>
+            <strong data-tr="ÖNEMLİ:" data-en="IMPORTANT:">ÖNEMLİ:</strong>
+            <span data-tr="Uygulamayı kapattıktan sonra telefonunuzda (örn: WhatsApp) internet sorunu yaşarsanız, telefonunuzun Wi-Fi bağlantısını bir kereliğine kapatıp açmanız yeterlidir. (Cache temizlenir)." data-en="If you experience network issues (e.g., WhatsApp) after closing the app, simply toggle your Wi-Fi off and on once. (Clears cache).">Uygulamayı kapattıktan sonra telefonunuzda (örn: WhatsApp) internet sorunu yaşarsanız, telefonunuzun Wi-Fi bağlantısını bir kereliğine kapatıp açmanız yeterlidir. (Cache temizlenir).</span>
+        </div>
+    </div>
+</div>
+
 <script>
-(function(){{ var url=document.getElementById('pacurl').value; var btn=document.getElementById('copybtn'); var hint=document.getElementById('copyhint');
-function tryCopy(){{ if(navigator.clipboard && navigator.clipboard.writeText){{ navigator.clipboard.writeText(url).then(function(){{ btn.textContent='Kopyalandı!'; btn.classList.add('copied'); hint.textContent='Şimdi Ayarlar\'a gidip proxy alanına yapıştırın.'; setTimeout(function(){{ btn.textContent='Tekrar kopyala'; btn.classList.remove('copied'); }}, 3000); }}).catch(function(){{ selectAndHint(); }}); }} else selectAndHint(); }}
-function selectAndHint(){{ var inp=document.getElementById('pacurl'); inp.select(); inp.setSelectionRange(0,99999); hint.textContent='Kutuyu seçildi. Uzun bas → Kopyala seçin.'; }}
-btn.onclick=tryCopy; document.getElementById('pacurl').onclick=function(){{ this.select(); }}; }})();
+(function() {{
+    var url = document.getElementById('pacurl').value;
+    var btn = document.getElementById('copybtn');
+    var currentLang = 'tr';
+
+    function setLanguage(lang) {{
+        currentLang = lang;
+        document.querySelectorAll('[data-tr]').forEach(function(el) {{
+            el.innerHTML = el.getAttribute('data-' + lang);
+        }});
+        document.getElementById('btn-tr').classList.toggle('active', lang === 'tr');
+        document.getElementById('btn-en').classList.toggle('active', lang === 'en');
+        
+        // Kopyalanmış buton metnini koruyalım eğer o andaysa
+        if (btn.classList.contains('success')) {{
+             btn.innerHTML = (lang === 'tr' ? '✓ Kopyalandı!' : '✓ Copied!');
+        }}
+    }}
+
+    document.getElementById('btn-tr').onclick = function() {{ setLanguage('tr'); }};
+    document.getElementById('btn-en').onclick = function() {{ setLanguage('en'); }};
+
+    function tryCopy() {{
+        if (navigator.clipboard && navigator.clipboard.writeText) {{
+            navigator.clipboard.writeText(url).then(function() {{
+                showSuccess();
+            }}).catch(fallbackCopyTextToClipboard);
+        }} else {{
+            fallbackCopyTextToClipboard();
+        }}
+    }}
+
+    function showSuccess() {{
+        var originalText = btn.getAttribute('data-' + currentLang);
+        btn.innerHTML = (currentLang === 'tr' ? '✓ Kopyalandı!' : '✓ Copied!');
+        btn.classList.add('success');
+        setTimeout(function() {{
+            btn.innerHTML = originalText;
+            btn.classList.remove('success');
+        }}, 2500);
+    }}
+
+    function fallbackCopyTextToClipboard() {{
+        var textArea = document.createElement("textarea");
+        textArea.value = url;
+        textArea.style.top = "0";
+        textArea.style.left = "0";
+        textArea.style.position = "fixed";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        try {{
+            var successful = document.execCommand('copy');
+            if (successful) showSuccess();
+        }} catch (err) {{ }}
+        document.body.removeChild(textArea);
+    }}
+
+    btn.onclick = tryCopy;
+}})();
 </script>
-<h2>iPhone / iPad</h2>
-<ul>
-<li>Ayarlar → Wi-Fi → Bağlı ağın yanındaki (i) → Proxy Yapılandırması → Otomatik → URL’yi yapıştırın.</li>
-</ul>
-<div class="step"><strong>Android adımlar:</strong>
-<ol style="margin:8px 0 0 16px; padding:0; color:#a1a1aa; font-size:0.9rem; line-height:1.7;">
-<li>Yukarıdan adresi kopyala</li>
-<li><a href="intent://android.settings.WIRELESS_SETTINGS#Intent;scheme=android-app;package=com.android.settings;end" class="link">Ayarlar / Ağ veya Wi-Fi'yi aç</a></li>
-<li>Bağlı olduğun Wi-Fi ağına dokun (veya ağ adının yanındaki dişli/ok)</li>
-<li>Gelişmiş veya Proxy bölümüne gir</li>
-<li>Proxy: Otomatik yapılandırma veya PAC seç</li>
-<li>PAC adresi / URL alanına yapıştır</li>
-</ol></div>
-</main>
 </body>
 </html>"#,
         html_escape(pac_url)
@@ -255,7 +389,7 @@ fn handle_pac_request(mut stream: TcpStream, pac_body: &Arc<Mutex<String>>, pac_
 
     // Cache-Control: no-cache ekle — cihazlar her seferinde güncel PAC'ı alsın
     let response = format!(
-        "HTTP/1.1 {}\r\nContent-Type: {}\r\nConnection: close\r\nCache-Control: no-cache, no-store, must-revalidate\r\nPragma: no-cache\r\nContent-Length: {}\r\n\r\n{}",
+        "HTTP/1.1 {}\r\nContent-Type: {}\r\nConnection: close\r\nCache-Control: no-cache, no-store, must-revalidate\r\nPragma: no-cache\r\nExpires: 0\r\nContent-Length: {}\r\n\r\n{}",
         status,
         content_type,
         body.len(),
