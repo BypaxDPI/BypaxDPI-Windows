@@ -39,6 +39,8 @@ import { QRCodeSVG } from "qrcode.react";
 
 import "./App.css";
 
+const IS_MACOS = /Mac/.test(navigator.userAgent) && !/Windows/.test(navigator.userAgent);
+
 // ✅ Constants — constants.js'den import ediliyor (DNS_MAP, DOH_MAP, URLS, APP, RETRY_DELAYS, DPI_TIMEOUTS)
 
 const PURIFY_CONFIG = { ALLOWED_TAGS: ['strong', 'em', 'br', 'span', 'b'], ALLOWED_ATTR: ['class'] };
@@ -625,7 +627,7 @@ function App() {
         } else {
           // Sürücü yok veya gelişmiş bypass kapalı: Sadece Chunk 1
           args.push("--https-split-mode", "chunk", "--https-chunk-size", "1");
-          if (!hasDriver) {
+          if (!hasDriver && !IS_MACOS) {
             addLog(t.logStrongNoDriver || "⚠️ Güçlü Mod: Sürücü yok, sadece Chunk-1 aktif.", "warn");
           } else {
             addLog(t.logStrongChunkOnly || "🛡️ Güçlü Mod: Chunk-1 aktif.", "info");
@@ -984,14 +986,12 @@ function App() {
         i18nParams: [e],
       });
 
-      // ✅ Sorun 2: Antivirüs uyarısı — spawn başarısızsa Defender engellemiş olabilir
       const errStr = String(e).toLowerCase();
       if (errStr.includes("denied") || errStr.includes("access") || errStr.includes("not found") || errStr.includes("os error")) {
-        addLog(
-          "⚠️ " + (t.logAntivirusWarning || "Windows Defender veya antivirüs yazılımınız 'bypax-proxy.exe' dosyasını engellemiş olabilir. Lütfen dosyayı antivirüs dışlama listesine (exclusion) ekleyin."),
-          "warn",
-          { i18nKey: "logAntivirusWarning" }
-        );
+        const msg = IS_MACOS
+          ? "⚠️ bypax-proxy çalıştırma izni reddedildi. Terminal'de: chmod +x bypax-proxy"
+          : "⚠️ " + (t.logAntivirusWarning || "Windows Defender veya antivirüs yazılımınız 'bypax-proxy.exe' dosyasını engellemiş olabilir. Lütfen dosyayı antivirüs dışlama listesine (exclusion) ekleyin.");
+        addLog(msg, "warn", IS_MACOS ? {} : { i18nKey: "logAntivirusWarning" });
       }
       setIsConnected(false);
       setIsProcessing(false);

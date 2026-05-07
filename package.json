@@ -8,6 +8,7 @@
     "build": "npm run update-proxy-icon && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
+    "tauri:windows": "tauri --config src-tauri/tauri.windows.conf.json",
     "update-proxy-icon": "node change-icon.js",
     "copy-proxy": "node scripts/copy-proxy.cjs",
     "build-proxy": "node scripts/build-proxy.cjs"
