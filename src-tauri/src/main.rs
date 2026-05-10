@@ -52,6 +52,13 @@ fn main() {
                 .status();
         }
 
+        #[cfg(target_os = "macos")]
+        {
+            let _ = std::process::Command::new("pkill")
+                .arg("bypax-proxy")
+                .status();
+        }
+
         eprintln!("BypaxDPI PANIC: {}", panic_info);
     }));
 

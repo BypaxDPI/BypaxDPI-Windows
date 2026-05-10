@@ -1,0 +1,8 @@
+{
+  "bundle": {
+    "resources": [
+      "binaries/npcap-installer.exe"
+    ],
+    "targets": ["nsis", "msi"]
+  }
+}

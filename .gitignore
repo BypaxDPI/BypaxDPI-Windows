@@ -40,6 +40,7 @@ Desktop.ini
 
 # Binaries/Executables
 spoofdpi/
+src-tauri/binaries/
 *.exe
 *.dll
 *.so

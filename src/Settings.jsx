@@ -13,6 +13,8 @@ import { URLS } from './constants';
 import { ISP_PROFILES, CHUNK_SIZES, DEFAULT_CHUNKS } from './profiles';
 import './App.css';
 
+const IS_MACOS = /Mac/.test(navigator.userAgent) && !/Windows/.test(navigator.userAgent);
+
 const Toggle = ({ checked, onChange }) => (
   <div 
     className={`v2-toggle ${checked ? 'active' : ''}`}
@@ -520,9 +522,9 @@ const Settings = ({ onBack, config, updateConfig, dnsLatencies, setDnsLatencies 
                       </div>
                     </div>
 
-                    {/* Npcap Gelişmiş Bypass — Güçlü Mod altında */}
+                    {/* Npcap Gelişmiş Bypass — Güçlü Mod altında (sadece Windows) */}
                     <AnimatePresence>
-                      {config.dpiMethod === '2' && (
+                      {!IS_MACOS && config.dpiMethod === '2' && (
                         <motion.div
                           initial={{ opacity: 0, height: 0 }}
                           animate={{ opacity: 1, height: 'auto' }}

@@ -167,6 +167,116 @@ mod registry {
     }
 }
 
+#[cfg(target_os = "macos")]
+mod proxy_macos {
+    use std::process::Command;
+
+    #[derive(Debug, Clone)]
+    pub struct ServiceProxy {
+        pub service: String,
+        pub web_enabled: bool,
+        pub web_server: String,
+        pub web_port: u16,
+        pub https_enabled: bool,
+        pub https_server: String,
+        pub https_port: u16,
+    }
+
+    pub fn list_services() -> Vec<String> {
+        Command::new("networksetup")
+            .arg("-listallnetworkservices")
+            .output()
+            .map(|out| {
+                String::from_utf8_lossy(&out.stdout)
+                    .lines()
+                    .filter(|l| !l.contains("asterisk") && !l.trim().is_empty())
+                    .map(String::from)
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    fn parse_proxy_fields(output: &str) -> (String, u16, bool) {
+        let mut server = String::new();
+        let mut port = 0u16;
+        let mut enabled = false;
+        for line in output.lines() {
+            let line = line.trim();
+            if let Some(v) = line.strip_prefix("Server: ") {
+                server = v.to_string();
+            } else if let Some(v) = line.strip_prefix("Port: ") {
+                port = v.parse().unwrap_or(0);
+            } else if let Some(v) = line.strip_prefix("Enabled: ") {
+                enabled = v == "Yes";
+            }
+        }
+        (server, port, enabled)
+    }
+
+    pub fn get_service_proxy(service: &str) -> ServiceProxy {
+        let web_out = Command::new("networksetup")
+            .args(&["-getwebproxy", service])
+            .output()
+            .map(|o| String::from_utf8_lossy(&o.stdout).into_owned())
+            .unwrap_or_default();
+        let (web_server, web_port, web_enabled) = parse_proxy_fields(&web_out);
+
+        let https_out = Command::new("networksetup")
+            .args(&["-getsecurewebproxy", service])
+            .output()
+            .map(|o| String::from_utf8_lossy(&o.stdout).into_owned())
+            .unwrap_or_default();
+        let (https_server, https_port, https_enabled) = parse_proxy_fields(&https_out);
+
+        ServiceProxy {
+            service: service.to_string(),
+            web_enabled,
+            web_server,
+            web_port,
+            https_enabled,
+            https_server,
+            https_port,
+        }
+    }
+
+    pub fn set_proxy(port: u16) -> Result<(), String> {
+        let services = list_services();
+        if services.is_empty() {
+            return Err("Ağ servisi bulunamadı".to_string());
+        }
+        for service in &services {
+            let port_str = port.to_string();
+            let _ = Command::new("networksetup")
+                .args(&["-setwebproxy", service, "127.0.0.1", &port_str])
+                .status();
+            let _ = Command::new("networksetup")
+                .args(&["-setsecurewebproxy", service, "127.0.0.1", &port_str])
+                .status();
+        }
+        Ok(())
+    }
+
+    pub fn clear_proxy() -> Result<(), String> {
+        for service in list_services() {
+            let _ = Command::new("networksetup")
+                .args(&["-setwebproxystate", &service, "off"])
+                .status();
+            let _ = Command::new("networksetup")
+                .args(&["-setsecurewebproxystate", &service, "off"])
+                .status();
+        }
+        Ok(())
+    }
+
+    pub fn can_access() -> bool {
+        Command::new("networksetup")
+            .arg("-listallnetworkservices")
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false)
+    }
+}
+
 /// Sentinel dosya yolu — proxy aktifken var, kapanınca silinir.
 /// Crash/BSOD/force-kill sonrası hâlâ duruyorsa → dirty shutdown algılanır.
 fn sentinel_path() -> std::path::PathBuf {
@@ -176,6 +286,7 @@ fn sentinel_path() -> std::path::PathBuf {
 /// PAC dosyası yolu — AutoConfigURL ile proxy yapılandırması için
 
 /// Orijinal proxy ayarlarını tutan yapı
+#[allow(dead_code)]
 #[derive(Debug, Clone, Default)]
 struct OriginalProxySettings {
     proxy_enable: Option<u32>,
@@ -187,6 +298,61 @@ struct OriginalProxySettings {
 fn original_proxy_store() -> &'static Mutex<Option<OriginalProxySettings>> {
     static STORE: OnceLock<Mutex<Option<OriginalProxySettings>>> = OnceLock::new();
     STORE.get_or_init(|| Mutex::new(None))
+}
+
+#[cfg(target_os = "macos")]
+fn macos_proxy_store() -> &'static Mutex<Option<Vec<proxy_macos::ServiceProxy>>> {
+    static STORE: OnceLock<Mutex<Option<Vec<proxy_macos::ServiceProxy>>>> = OnceLock::new();
+    STORE.get_or_init(|| Mutex::new(None))
+}
+
+#[cfg(target_os = "macos")]
+fn backup_proxy_settings_macos() {
+    let services = proxy_macos::list_services();
+    let backups: Vec<proxy_macos::ServiceProxy> = services
+        .iter()
+        .map(|s| proxy_macos::get_service_proxy(s))
+        .collect();
+    if let Ok(mut guard) = macos_proxy_store().lock() {
+        if guard.is_none() {
+            eprintln!("[PROXY-BACKUP] macOS proxy yedeklendi: {} servis", backups.len());
+            *guard = Some(backups);
+        }
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn restore_proxy_settings_macos() -> bool {
+    let original = match macos_proxy_store().lock() {
+        Ok(guard) => guard.clone(),
+        Err(poisoned) => poisoned.into_inner().clone(),
+    };
+
+    if let Some(backups) = original {
+        let mut restored = false;
+        for b in &backups {
+            if b.web_enabled && !b.web_server.is_empty() && !b.web_server.starts_with("127.0.0.1") {
+                eprintln!("[PROXY-RESTORE] macOS: {} geri yükleniyor", b.service);
+                let _ = std::process::Command::new("networksetup")
+                    .args(&["-setwebproxy", &b.service, &b.web_server, &b.web_port.to_string()])
+                    .status();
+                let _ = std::process::Command::new("networksetup")
+                    .args(&["-setwebproxystate", &b.service, "on"])
+                    .status();
+                if b.https_enabled && !b.https_server.is_empty() {
+                    let _ = std::process::Command::new("networksetup")
+                        .args(&["-setsecurewebproxy", &b.service, &b.https_server, &b.https_port.to_string()])
+                        .status();
+                    let _ = std::process::Command::new("networksetup")
+                        .args(&["-setsecurewebproxystate", &b.service, "on"])
+                        .status();
+                }
+                restored = true;
+            }
+        }
+        return restored;
+    }
+    false
 }
 
 /// Proxy ayarlarını set etmeden ÖNCE mevcut değerleri yedekler
@@ -1129,6 +1295,20 @@ fn clear_system_proxy() -> Result<(), String> {
         manage_firewall_rules(false, 0, 0);
     }
 
+    #[cfg(target_os = "macos")]
+    {
+        let has_original = restore_proxy_settings_macos();
+        if !has_original {
+            let _ = proxy_macos::clear_proxy();
+        }
+        let _ = std::process::Command::new("dscacheutil")
+            .arg("-flushcache")
+            .status();
+        if let Ok(mut guard) = macos_proxy_store().lock() {
+            *guard = None;
+        }
+    }
+
     // P0-FIX-1: Sentinel dosyasını sil — proxy artık aktif değil
     let _ = std::fs::remove_file(sentinel_path());
 
@@ -1184,8 +1364,8 @@ fn exempt_all_uwp_apps() {
 
 #[tauri::command]
 fn set_system_proxy(port: u16, enable_winhttp: bool) -> Result<(), String> {
-    let _guard = acquire_proxy_lock(); // P0-FIX-3: Poisoned mutex recovery
-                                       // ✅ Port aralığı validasyonu
+    let _guard = acquire_proxy_lock();
+    let _ = enable_winhttp; // Windows-only; macOS'ta WinHTTP karşılığı yok
     if port < 1024 {
         return Err("Geçersiz port numarası (1024-65535 arası olmalı)".to_string());
     }
@@ -1243,6 +1423,15 @@ fn set_system_proxy(port: u16, enable_winhttp: bool) -> Result<(), String> {
                 .stderr(std::process::Stdio::null())
                 .status();
         }
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        if !proxy_macos::can_access() {
+            return Err("networksetup erişim izni yok. Uygulamayı yönetici olarak çalıştırın.".to_string());
+        }
+        backup_proxy_settings_macos();
+        proxy_macos::set_proxy(port).map_err(|e| format!("macOS proxy ayarlanamadı: {}", e))?;
     }
 
     // P0-FIX-1: Sentinel dosyası oluştur — proxy artık aktif
@@ -1357,7 +1546,19 @@ fn kill_zombie_sidecar() -> Result<String, String> {
     }
     #[cfg(not(target_os = "windows"))]
     {
-        Ok("Zombi temizleme sadece Windows'ta desteklenir.".to_string())
+        let pid_file = std::env::temp_dir().join("bypaxdpi_sidecar.pid");
+        if let Ok(pid_str) = std::fs::read_to_string(&pid_file) {
+            if let Ok(pid) = pid_str.trim().parse::<u32>() {
+                if pid > 0 {
+                    let _ = std::process::Command::new("kill")
+                        .args(["-9", &pid.to_string()])
+                        .status();
+                    let _ = std::fs::remove_file(&pid_file);
+                    return Ok(format!("Zombi süreç (PID {}) durduruldu.", pid));
+                }
+            }
+        }
+        Ok("Zombi PID dosyası bulunamadı.".to_string())
     }
 }
 
@@ -1421,6 +1622,14 @@ fn startup_proxy_cleanup() -> Result<bool, String> {
             manage_firewall_rules(false, 0, 0);
         }
 
+        #[cfg(target_os = "macos")]
+        {
+            let _ = proxy_macos::clear_proxy();
+            let _ = std::process::Command::new("dscacheutil")
+                .arg("-flushcache")
+                .status();
+        }
+
         let _ = std::fs::remove_file(&sentinel);
         eprintln!("[STARTUP] ✅ Orphaned proxy + firewall rules cleaned");
 
@@ -1434,36 +1643,48 @@ fn startup_proxy_cleanup() -> Result<bool, String> {
     Ok(false) // Temiz başlangıç
 }
 
-// 1. Sürücü kontrolü (lib.rs içine ekle)
 #[tauri::command]
 fn check_driver() -> bool {
-    std::path::Path::new("C:\\Windows\\System32\\wpcap.dll").exists()
-        || std::path::Path::new("C:\\Windows\\SysWOW64\\wpcap.dll").exists()
+    #[cfg(target_os = "windows")]
+    {
+        return std::path::Path::new("C:\\Windows\\System32\\wpcap.dll").exists()
+            || std::path::Path::new("C:\\Windows\\SysWOW64\\wpcap.dll").exists();
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        false
+    }
 }
 
-// 2. Sürücü kurulumu (lib.rs içine ekle)
 #[tauri::command]
 fn install_driver(app: tauri::AppHandle) -> Result<(), String> {
-    let resource_path = app
-        .path()
-        .resource_dir()
-        .map_err(|e| e.to_string())?
-        .join("binaries/npcap-installer.exe");
-
-    if !resource_path.exists() {
-        return Err("Sürücü dosyası bulunamadı. Lütfen uygulamayı yeniden yükleyin.".into());
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = app;
+        return Err("Sürücü kurulumu bu platformda gerekli değil.".to_string());
     }
 
-    // P0-FIX: Driver kurulumunu görünür yaptık (/S kaldırıldı, CREATE_NO_WINDOW kaldırıldı)
-    // Bu sayede kullanıcı UAC (Yönetici İzni) uyarısını görebilir ve kurulumu tamamlayabilir.
-    let status = std::process::Command::new(resource_path)
-        .status() // Normal status call, shows window
-        .map_err(|e| e.to_string())?;
+    #[cfg(target_os = "windows")]
+    {
+        let resource_path = app
+            .path()
+            .resource_dir()
+            .map_err(|e| e.to_string())?
+            .join("binaries/npcap-installer.exe");
 
-    if status.success() {
-        Ok(())
-    } else {
-        Err("Kurulum kullanıcı tarafından iptal edildi veya başarısız oldu.".into())
+        if !resource_path.exists() {
+            return Err("Sürücü dosyası bulunamadı. Lütfen uygulamayı yeniden yükleyin.".into());
+        }
+
+        let status = std::process::Command::new(resource_path)
+            .status()
+            .map_err(|e| e.to_string())?;
+
+        if status.success() {
+            Ok(())
+        } else {
+            Err("Kurulum kullanıcı tarafından iptal edildi veya başarısız oldu.".into())
+        }
     }
 }
 
@@ -1509,11 +1730,44 @@ pub fn run() {
         }
     }
 
+    #[cfg(target_os = "macos")]
+    {
+        use std::io::Read;
+        let lock_path = std::env::temp_dir().join("bypaxdpi_instance.lock");
+        if lock_path.exists() {
+            if let Ok(mut f) = std::fs::File::open(&lock_path) {
+                let mut pid_str = String::new();
+                let _ = f.read_to_string(&mut pid_str);
+                if let Ok(pid) = pid_str.trim().parse::<u32>() {
+                    let alive = std::process::Command::new("kill")
+                        .args(&["-0", &pid.to_string()])
+                        .status()
+                        .map(|s| s.success())
+                        .unwrap_or(false);
+                    if alive {
+                        eprintln!("[STARTUP] ❌ BypaxDPI zaten çalışıyor — çıkılıyor");
+                        std::process::exit(0);
+                    }
+                }
+            }
+        }
+        let _ = std::fs::write(&lock_path, std::process::id().to_string());
+    }
+
     tauri::Builder::default()
         .manage(PacServerState::default())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
         .setup(|app| {
+            #[cfg(target_os = "macos")]
+            {
+                use tauri::Manager;
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.set_title_bar_style(tauri::TitleBarStyle::Overlay);
+                    // Başlık çubuğu alanını içerikle paylaş, traffic lights kalır
+                }
+            }
+
             #[cfg(desktop)]
             {
                 use tauri::menu::{Menu, MenuItem};
@@ -1682,6 +1936,11 @@ pub fn run() {
                     #[cfg(target_os = "windows")]
                     manage_firewall_rules(false, 0, 0);
                 }
+            }
+            #[cfg(target_os = "macos")]
+            {
+                let lock_path = std::env::temp_dir().join("bypaxdpi_instance.lock");
+                let _ = std::fs::remove_file(lock_path);
             }
         });
 }

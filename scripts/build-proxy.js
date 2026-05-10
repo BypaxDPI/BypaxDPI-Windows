@@ -8,7 +8,7 @@ const path = require('path');
 const fs = require('fs');
 
 const root = path.resolve(__dirname, '..');
-const spoofDpiDir = path.join(root, 'SpoofDPI-1.2.1', 'SpoofDPI-1.2.1');
+const spoofDpiDir = path.join(root, 'SpoofDPI-1.2.1', 'spoofdpi-1.2.1');
 const outExe = path.join(root, 'spoofdpi', 'bypax-proxy.exe');
 
 if (!fs.existsSync(path.join(spoofDpiDir, 'go.mod'))) {
