@@ -151,6 +151,12 @@ Bu proje açık kaynaklı, tamamen hür bir topluluk girişimidir. BypaxDPI'ın 
 - BypaxDPI yalnızca local makinenizde giden HTTPS trafiğinin TLS paketlerini (SNI katmanı) bölerek yeniden organize eder (Packet Fragmentation). Herhangi bir uzak VPN sunucusu ile veri alışverişi (Şifre çözücü tünel) sağlamaz, bu yüzden bankacılık dahil tüm işlemleriniz ISP/Browser ile kendi aranızdadır.
 - Yazılım kişisel kullanıma açık ve ücretsizdir; ticari, yasadışı ya da manipülatif amaçlı siber ihlaller hedefinde kullanılamaz. BypaxDPI ile gerçekleştirilen tüm erişim faaliyetleri ve oluşacak teknik/yasal yükümlülükler tamamen son kullanıcıya (kullanıcıya) aittir. Üretici kanun yolları için sorumluluk reddinde bulunur. 
 
+---
+
+## 👥 Katkıda Bulunanlar
+
+[![Contributors](https://contrib.rocks/image?repo=BypaxDPI/BypaxDPI-Windows)](https://github.com/BypaxDPI/BypaxDPI-Windows/graphs/contributors)
+
 <br>
 <div align="center">
   <strong>🔥 BypaxDPI ile kesintisiz ve şeffaf internete hoş geldiniz!</strong>

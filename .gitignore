@@ -46,3 +46,4 @@ spoofdpi/
 *.dylib
 
 SpoofDPI-1.2.1/
+*/settings.local.json
